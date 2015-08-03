@@ -1,0 +1,12 @@
+{application, erlZenDeskStats,
+ [
+  {description, "Collect and store Riak support statistics from ZenDesk"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { erlZenDeskStats_app, []}},
+  {env, []}
+ ]}.
