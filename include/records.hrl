@@ -54,3 +54,5 @@
 -define(START_TIME, "1383734680").
 -define(USER, "Your_user_name").
 -define(PWD, "Your password").
+-define(ZENDESK_URL, "https://YOUR_ORG.zendesk.com/api/v2").
+
