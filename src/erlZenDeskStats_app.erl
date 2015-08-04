@@ -42,7 +42,7 @@ start(_StartType, _StartArgs) ->
             error_logger:error_msg(["comments table creation failed ",{error,Error}])
     end,
     error_logger:info_msg("mnesia table tickets created"),
-    Type = set,
+    Type = ordered_set,
     mnesia:create_table(monthly_stat_tickets_created,
                         [{disc_copies,[node()]}, {type, Type},{attributes,[key, counter]}]),
     mnesia:create_table(monthly_stat_tickets_solved,

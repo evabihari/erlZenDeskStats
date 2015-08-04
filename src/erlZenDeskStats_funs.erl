@@ -19,7 +19,7 @@ read_web(Url) ->
                        ], []) of
         {ok,Answer} -> {success,Answer};
         {error, socket_closed_remotely} -> 
-            error_logger:error_report("socket_closed_remotely"),
+            error_logger:error_report("socket_closed_remotely",{url,Url}),
             {{error,socket_closed_remotely},error};
                    %%     error_logger:error_report("socket_closed_remotely",[]),
                    %%    {{error,socket_closed_remotely},error};
@@ -178,7 +178,7 @@ dirty_update_counter(Tab, Key, Incr) ->
 do_dirty_update_counter(SyncMode, Tab, Key, Incr)
   when is_atom(Tab), Tab /= schema, is_integer(Incr) ->
     case ?catch_val({Tab, record_validation}) of
-        {RecName, 3, set} ->
+        {RecName, 3, Type} when Type==set; Type==ordered_set->
             Oid = {Tab, Key},
             mnesia_tm:dirty(SyncMode, {Oid, {RecName, Incr}, update_counter});
         _ ->
