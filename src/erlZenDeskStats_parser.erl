@@ -1,10 +1,15 @@
 -module(erlZenDeskStats_parser).
--export([init/0,get_tickets/0]).
+-export([init/0,get_tickets/0, start/0]).
 
 -include("records.hrl").
 
+start() ->
+     spawn(?MODULE, init,[]).
+
 init() ->
-    gen_server:cast(erlZenDeskStats_worker,start_walktrough).
+    % gen_server:cast(erlZenDeskStats_worker,start_walktrough).
+    io:format("parse started, Pid=~p~n",[self()]),
+    get_tickets().
 
 get_tickets() ->
     erlZenDeskStats_funs:clear_counters(),
@@ -18,7 +23,6 @@ get_tickets() ->
                     {struct,Results} = mochijson:decode(Body),
                     {array, TicketList} = proplists:get_value("results",Results),
                     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}=parse(tickets,TicketList,{0,0,0,0,0}),
-                    
                     gen_server:cast(erlZenDeskStats_worker, {zendesk_parsed, {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}});
                 error ->
                      gen_server:cast(erlZenDeskStats_worker, {error, {headers,Url}})
@@ -30,7 +34,6 @@ get_tickets() ->
 gen_url(Src, Query) ->
      Src ++ Query.
 
-
 parse(tickets,[],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no};
 parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
@@ -39,21 +42,24 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
   CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
   Solved=proplists:get_value("solved_at",List),
   Org_name = proplists:get_value("organization_name",List),
-  mnesia:dirty_update_counter(monthly_stat_tickets_created,{Org_name, CY,CM},1),
-  mnesia:dirty_update_counter(weekly_stat_tickets_created,{Org_name, CW},1),
+  erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,{Org_name, CY,CM},1),
+  erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,{Org_name, CW},1),
 
-  {SY,SM,SW} = case Solved of
-                      null -> {undefined, undefined, undefined};
-                      Date ->
-                       {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
-                       W=erlZenDeskStats_funs:week_number(Y,M,D),
-                       mnesia:dirty_update_counter(monthly_stat_tickets_solved,{Org_name, Y,M},1),
-                       mnesia:dirty_update_counter(weekly_stat_tickets_solved,{Org_name, W},1),
-                       {Y,M,W}
-                      end,
+    {SY,SM,SW} = case Solved of
+                     null -> {undefined, undefined, undefined};
+                     Date ->
+                         {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
+                         W=erlZenDeskStats_funs:week_number(Y,M,D),
+                         erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
+                                                                   {Org_name, Y,M},1),
+                         erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_solved,
+                                                                   {Org_name, W},1),
+                         {Y,M,W}
+                 end,
   Status = proplists:get_value("status",List),
   Updated_at = proplists:get_value("updated_at",List),
   Id = proplists:get_value("id",List),
+
   T=#tickets{id = Id,
           created_at = Created,
           creation_year = CY,
@@ -76,7 +82,8 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
           product_and_version= proplists:get_value("field_23659343",List), %field_23659343
           root_cause= proplists:get_value("field_23659393",List), %field_23659393 -> Root couse
           complexity= proplists:get_value("field_23666277",List), %field_23666277 -> Complexity
-          how_was_resolved= proplists:get_value("field_23671848",List), % field_23671848 -> How was it resolved
+          how_was_resolved= proplists:get_value("field_23671848",List), 
+                                                % field_23671848 -> How was it resolved
           maximumPriority= proplists:get_value("field_24366599",List) %field_24366599 -> MaximumPriority        
           },
     Store_tickets = case mnesia:dirty_read(tickets, Id) of
@@ -120,8 +127,8 @@ parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
     Created=proplists:get_value("created_at",C),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
-    mnesia:dirty_update_counter(monthly_stat_tickets_commented,{Org_name, CY,CM},1),
-    mnesia:dirty_update_counter(weekly_stat_tickets_commented,{Org_name, CW},1),
+    erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_commented,{Org_name, CY,CM},1),
+    erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,{Org_name, CW},1),
     Comment_record=#comments{
          ticket_id=Ticket_id,
          organization=Org_name,

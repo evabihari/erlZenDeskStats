@@ -4,7 +4,8 @@
          get_counter/1,
          get_counters/1,
          start_new_round/0,
-         write_table_to_csv/2]).
+         write_table_to_csv/2,
+         dump_all_tables/1]).
 
 
 get_status() ->
@@ -37,7 +38,7 @@ get_counter(Counter) ->
     end.
 
 start_new_round() ->
-    gen_server:cast(erlZenDeskStats_worker,{start_new_walktrough}).
+    gen_server:cast(erlZenDeskStats_worker,{start_walktrough}).
     
 write_table_to_csv(Table,FileName) ->
     try 
@@ -49,3 +50,20 @@ write_table_to_csv(Table,FileName) ->
         Error:Reason ->
              {Error, Reason}
     end.    
+
+dump_all_tables(FileNamePrefix) ->
+    Tables = mnesia:system_info(tables),
+    dump_tables(Tables,FileNamePrefix).
+
+dump_tables([],_) ->
+    ok;
+dump_tables([schema|Tables],FileNamePrefix) ->
+    io:format("schema skipped ~n",[]),
+    dump_tables(Tables,FileNamePrefix);
+dump_tables([TableName|Tables],FileNamePrefix) ->
+    FileName= FileNamePrefix++"_"++atom_to_list(TableName)++".csv",
+    write_table_to_csv(TableName,FileName),
+    io:format("~p dumped ~n",[FileName]),
+    dump_tables(Tables,FileNamePrefix).
+    
+    

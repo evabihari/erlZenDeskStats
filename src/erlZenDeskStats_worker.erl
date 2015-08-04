@@ -60,8 +60,8 @@ start_link() ->
 %%--------------------------------------------------------------------
 init([]) ->
     error_logger:info_report("erlZenDeskStats_worker:init"),
-    erlZenDeskStats_parser:init(),
-    {ok, #state{}}.
+    erlZenDeskStats_parser:start(),
+    {ok, #state{parsing_in_progress=true}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -119,8 +119,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(start_walktrough, State) ->
-       erlZenDeskStats_parser:get_tickets(),
+handle_cast({start_walktrough}, State) ->
+     erlZenDeskStats_parser:start(),
     {noreply, State#state{parsing_in_progress=true}};
 
 handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}}, State) ->
@@ -152,6 +152,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(_Info, State) ->
+    io:format("ZenDeskStats_worker got info msg ~p~n",[_Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -166,6 +167,7 @@ handle_info(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
+    io:format("ZenDeskStats_worker terminated with Reason ~p~n",[_Reason]),
     ok.
 
 %%--------------------------------------------------------------------
