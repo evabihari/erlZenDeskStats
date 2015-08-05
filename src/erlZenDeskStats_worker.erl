@@ -81,29 +81,29 @@ handle_call({get_status},_From, State) ->
     {reply, State, State};
 handle_call({get_counter, Counter},_From, State) ->
     Answer = case { State#state.parsing_in_progress,Counter} of
-        {true,_} -> "Parsing in progress, please try it later";
-        {false,no_of_tickets} -> State#state.no_of_tickets;
-        {false,no_of_closed_tickets} -> State#state.no_of_closed_tickets;
-        {false,no_of_pending_tickets} -> State#state.no_of_pending_tickets;
-        {false,no_of_open_tickets} -> State#state.no_of_open_tickets;
-        {false,no_of_solved_tickets} -> State#state.no_of_solved_tickets;
-        {false,all_tickets} -> mnesia:table_info(tickets,size);
-        {false,all_comments} ->  mnesia:table_info(comments,size);
-        _ -> undefined
-    end,
+                 {true,_} -> "Parsing in progress, please try it later";
+                 {false,no_of_tickets} -> State#state.no_of_tickets;
+                 {false,no_of_closed_tickets} -> State#state.no_of_closed_tickets;
+                 {false,no_of_pending_tickets} -> State#state.no_of_pending_tickets;
+                 {false,no_of_open_tickets} -> State#state.no_of_open_tickets;
+                 {false,no_of_solved_tickets} -> State#state.no_of_solved_tickets;
+                 {false,all_tickets} -> mnesia:table_info(tickets,size);
+                 {false,all_comments} ->  mnesia:table_info(comments,size);
+                 _ -> undefined
+             end,
     {reply,{Counter, Answer},State};
 
 handle_call({store_table_to_csv,Table,FileName}, _From, State) ->
     {ok, IoDevice} = file:open(FileName,[write]),
     Reply = case erlZenDeskStats_funs:dump_table(IoDevice, Table) of
-        IoDevice ->
-            ok;
-        Other ->
-            {error,Other}
-    end,
+                IoDevice ->
+                    ok;
+                Other ->
+                    {error,Other}
+            end,
     file:close(IoDevice),
     {reply, Reply, State};
-    
+
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -120,7 +120,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({start_walktrough}, State) ->
-     erlZenDeskStats_parser:start(),
+    erlZenDeskStats_parser:start(),
     {noreply, State#state{parsing_in_progress=true}};
 
 handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}}, State) ->

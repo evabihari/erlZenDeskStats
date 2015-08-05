@@ -5,7 +5,8 @@
          get_counters/1,
          start_new_round/0,
          write_table_to_csv/2,
-         dump_all_tables/1]).
+         dump_all_tables/1,
+         merge_stats_tables/0]).
 
 
 get_status() ->
@@ -14,7 +15,7 @@ get_status() ->
     catch
         exit:{timeout,_Other} -> "Parsing in progress, please try it later";
         Error:Reason ->
-             {Error, Reason}
+            {Error, Reason}
     end.
 
 get_counters() ->
@@ -34,12 +35,12 @@ get_counter(Counter) ->
     catch
         exit:{timeout,_Other} -> "Parsing in progress, please try it later";
         Error:Reason ->
-             {Error, Reason}
+            {Error, Reason}
     end.
 
 start_new_round() ->
     gen_server:cast(erlZenDeskStats_worker,{start_walktrough}).
-    
+
 write_table_to_csv(Table,FileName) ->
     try 
         gen_server:call(erlZenDeskStats_worker,{store_table_to_csv,Table,FileName}, 5000)
@@ -48,7 +49,7 @@ write_table_to_csv(Table,FileName) ->
             io:format("Other = ~p~n",[_Other]),
             "Samething has happend";
         Error:Reason ->
-             {Error, Reason}
+            {Error, Reason}
     end.    
 
 dump_all_tables(FileNamePrefix) ->
@@ -57,13 +58,18 @@ dump_all_tables(FileNamePrefix) ->
 
 dump_tables([],_) ->
     ok;
-dump_tables([schema|Tables],FileNamePrefix) ->
+dump_tables([schema|Tables],Directory) ->
     io:format("schema skipped ~n",[]),
-    dump_tables(Tables,FileNamePrefix);
-dump_tables([TableName|Tables],FileNamePrefix) ->
-    FileName= FileNamePrefix++"_"++atom_to_list(TableName)++".csv",
+    dump_tables(Tables,Directory);
+dump_tables([TableName|Tables],Directory) ->
+    ok=filelib:ensure_dir(Directory++"/"),
+    FileName = Directory++"/"++atom_to_list(TableName)++".csv",
     write_table_to_csv(TableName,FileName),
     io:format("~p dumped ~n",[FileName]),
-    dump_tables(Tables,FileNamePrefix).
-    
-    
+    dump_tables(Tables,Directory).
+
+
+merge_stats_tables() ->
+    erlZenDeskStats_funs:merge_stats(weekly),
+    erlZenDeskStats_funs:merge_stats(monthly).
+

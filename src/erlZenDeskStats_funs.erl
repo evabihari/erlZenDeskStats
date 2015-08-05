@@ -21,13 +21,13 @@ read_web(Url) ->
         {error, socket_closed_remotely} -> 
             error_logger:error_report("socket_closed_remotely",{url,Url}),
             {{error,socket_closed_remotely},error};
-                   %%     error_logger:error_report("socket_closed_remotely",[]),
-                   %%    {{error,socket_closed_remotely},error};
-                   %% error:R -> {{error,R},error};
+        %%     error_logger:error_report("socket_closed_remotely",[]),
+        %%    {{error,socket_closed_remotely},error};
+        %% error:R -> {{error,R},error};
         Error  ->
             io:format("read_web(~p) Error=~p~n",[Url,Error]),
             {error,Error}
-              % end
+                                                % end
     end.
 
 auth_header(User, Pass) ->
@@ -43,7 +43,7 @@ check(Header) ->
     end.
 
 store_to_db(_Db, Data) ->
-     mnesia:dirty_write( Data).
+    mnesia:dirty_write( Data).
 
 tokenize_dates(undefined) ->
     undefined;
@@ -57,10 +57,10 @@ week_number(Y,M,D)->
 clear_counters() ->
     mnesia:clear_table(monthly_stat_tickets_created),
     mnesia:clear_table(monthly_stat_tickets_solved),
-    mnesia:clear_table(monthly_stat_tickets_commented),
+    % mnesia:clear_table(monthly_stat_tickets_commented),
+    % mnesia:clear_table(weekly_stat_tickets_commented),
     mnesia:clear_table(weekly_stat_tickets_created),
-    mnesia:clear_table(weekly_stat_tickets_solved),
-    mnesia:clear_table(weekly_stat_tickets_commented).
+    mnesia:clear_table(weekly_stat_tickets_solved).
 
 compare_dates(Date1,Date2) ->
     [Y1,M1,D1,H1,Min1,S1|_]=string:tokens(Date1,"- :+TZ"),
@@ -81,7 +81,6 @@ compare([D1|Data1],[D2|Data2],equal) ->
 compare(_,_,Result) ->
     Result.
 
-                     
 dump_table(IoDevice, Table_name) ->
     mnesia:dirty_first(Table_name),
     write_header_line(IoDevice, Table_name),
@@ -100,7 +99,7 @@ dump_table(IoDevice, Table_name) ->
     IoDevice.
 
 write_header_line(IoDevice, Table_name) ->
-    %check the type of teh table key -> if it's a tuple 
+                                                %check the type of teh table key -> if it's a tuple 
     write_field_names(IoDevice,mnesia:table_info(Table_name, attributes)),
     io:format(IoDevice, "~n",[]).
 
@@ -110,15 +109,14 @@ write_field_names(IO,[Field|Fields]) ->
     io:format(IO,"~p ,",[Field]),
     write_field_names(IO,Fields).
 
-    
+
 is_space_in_element(Item) ->
     Pos = string:chr(Item, $,),
     if Pos > 0 ->
-             true;
+            true;
        true ->
             false
     end.
-
 
 pretty_print(Rec,IO) ->
     [_RecType|List] = tuple_to_list(Rec),
@@ -130,10 +128,10 @@ pretty_io_list([Element|List],IO) when is_integer(Element) ->
     io:format(IO, "~p,",[Element]),
     pretty_io_list(List,IO);
 pretty_io_list([Element|List],IO) when is_tuple(Element) ->
-    % dashed_list(tuple_to_list(Element),IO),
+                                                % dashed_list(tuple_to_list(Element),IO),
     S=format_tuple(lists:flatten(io_lib:format("~p",[Element]))),
-    % S=lists:flatten(io_lib:format("~p",[Element])),
-     io:format(IO,"~p," , [S]),
+                                                % S=lists:flatten(io_lib:format("~p",[Element])),
+    io:format(IO,"~p," , [S]),
     pretty_io_list(List,IO);
 pretty_io_list([null|List],IO) ->
     io:format(IO, ",",[]),
@@ -145,11 +143,11 @@ pretty_io_list([Item|List],IO) when is_atom(Item) ->
 
 pretty_io_list([Element|List],IO) when is_list (Element)->
     case is_space_in_element(Element) of
-           true -> 
-               % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
-                io:format(IO, "~p,",[Element]);
-           _ ->
-                io:format(IO, "~p,",[Element])
+        true -> 
+                                                % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
+            io:format(IO, "~p,",[Element]);
+        _ ->
+            io:format(IO, "~p,",[Element])
     end,
     pretty_io_list(List,IO).
 
@@ -194,3 +192,57 @@ format_tuple(T) ->
         NewTuple ->
             format_tuple(NewTuple)
     end.
+
+merge_stats(Type) when is_atom(Type) ->
+    merge_stats(atom_to_list(Type));
+merge_stats(Type) ->
+    Stats_tables = [T || T <- mnesia:system_info(tables), string:str(atom_to_list(T),Type)>0],
+    % Stats tables contains records with {attributes,[key, counter]}  
+    Table=list_to_atom(Type++"_stats"),
+    mnesia:delete_table(Table),
+    mnesia:create_table(Table,
+                             [{disc_copies,[node()]},
+                              {type, ordered_set},
+                              {attributes, record_info(fields,stats)},
+                              {record_name, stats}]),
+    store_data(Stats_tables,Table).
+
+store_data([],OutTable) ->
+    error_logger:info_report(["Data merged to stats table",{table, OutTable}]);
+store_data([InTable|List],OutTable) ->
+    Keys = mnesia:dirty_all_keys(InTable),
+    insert_objects(Keys, InTable, OutTable),
+    store_data(List,OutTable).
+
+insert_objects([],_In,_) ->
+    ok;
+insert_objects([Key|Keys],InTable,OutTable) ->
+    % InTable is weekly_stat_tickets_commented,weekly_stat_tickets_solved, weekly_stat_tickets_created
+    % or monthly_stat_tickets_commented,monthly_stat_tickets_solved, monthly_stat_tickets_created
+    In_name=atom_to_list(InTable), % ex. "weekly_stat_tickets_commented"
+    Postfix=list_to_atom(lists:last(string:tokens(In_name,"_"))),
+    Org= element(1, Key),
+    {Year,M_or_W} = element(2, Key),
+    OldObj = case mnesia:dirty_read(OutTable,Key) of
+                 [Stat|_] when is_record(Stat, stats) -> Stat;
+                 _ -> #stats{key=Key,
+                             organization = Org,
+                             year=Year,
+                             month_or_week=M_or_W}
+             end,
+    NewObj = case mnesia:dirty_read(InTable,Key) of
+        [] ->
+            OldObj;
+        [Obj|_] when is_record(Obj, stat_counter) ->
+                     case Postfix of
+                         created -> OldObj#stats{tickets_created=Obj#stat_counter.counter};
+                         solved -> OldObj#stats{tickets_solved=Obj#stat_counter.counter};
+                         commented -> OldObj#stats{tickets_commented=Obj#stat_counter.counter};
+                         _ -> OldObj
+                      end;
+        _  -> 
+            OldObj
+    end,
+    mnesia:dirty_write(OutTable, NewObj),
+    insert_objects(Keys,InTable,OutTable).
+            
