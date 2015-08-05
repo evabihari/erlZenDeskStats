@@ -153,11 +153,10 @@ parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
 
 
 parse_comments(Id,Org_name) ->
-                                                % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
-                                                % -H "Content-Type: application/json" -v -u {email_address}:{password}
+    % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
+    % -H "Content-Type: application/json" -v -u {email_address}:{password}
 
     Url = ?ZENDESK_URL++"/tickets/"++integer_to_list(Id)++"/comments.json",
-                                                %io:format("parse_comments for ticket id=~p, Url=~s~n",[Id,Url]),
     parse_comments(Id,Org_name,Url).
 
 parse_comments(Id,Org_name,Url) ->
