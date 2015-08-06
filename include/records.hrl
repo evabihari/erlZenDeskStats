@@ -33,10 +33,12 @@
                     public
                     }).
 
+
 - record(stats, {key, % {org, {year, month}} or {org, {year,week}}
                  organization,
                  year,
                  month_or_week,
+                 year_and_period, % {year, month_or_week}
                  tickets_created=0,
                  tickets_solved=0,
                  tickets_commented=0}).
@@ -56,7 +58,7 @@
 - endif.
 
 -define(START_TIME, "1383734680").
--define(USER, "YOUR_USERNME").
--define(PWD, "YOUR_PWD").
--define(ZENDESK_URL, "https://YOUR_ZENDESK.zendesk.com/api/v2").
+-define(USER, "Your_user_name").
+-define(PWD, "Your password").
+-define(ZENDESK_URL, "https://YOUR_ORG.zendesk.com/api/v2").
 

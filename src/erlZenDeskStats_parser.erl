@@ -130,16 +130,17 @@ parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
     Created=proplists:get_value("created_at",C),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
+    Comment_id=proplists:get_value("id",C),
     Comment_record=#comments{
                       ticket_id=Ticket_id,
                       organization=Org_name,
-                      id=proplists:get_value("id",C),
+                      id=Comment_id,
                       type=proplists:get_value("comment",C),
                       created_at=Created,
                       author_id=proplists:get_value("author_id",C),
                       public=proplists:get_value("public",C)
                      },
-    case mnesia:dirty_read(comments, Ticket_id) of
+    case mnesia:dirty_read(comments, Comment_id) of
         [] ->  erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_commented,
                                                          {Org_name, {CY,CM}},1),
                erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,

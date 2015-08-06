@@ -40,12 +40,17 @@ application:start(erlZenDeskStats).
 
 API calls:
 ==========
-* erlZenDeskStatsI:start_new_round().    #start new round of ZenDesk
+* ` erlZenDeskStatsI:start_new_round().`    #start new round of ZenDesk
   REST APIs
-* erlZenDeskStatsI:get_status().
-* erlZenDeskStatsI:get_counter(no_of_tickets).
-* erlZenDeskStatsI:get_counters(). -> all counters
-* erlZenDeskStatsI:get_counters([Counter|Counters]) -> get more counter values;
-* erlZenDeskStatsI:write_table_to_csv(Table,FileName).
+* ` erlZenDeskStatsI:get_status().`
+* ` erlZenDeskStatsI:get_counter(no_of_tickets). `
+* ` erlZenDeskStatsI:get_counters(). ` -> all counters
+* ` erlZenDeskStatsI:get_counters([Counter|Counters]). ` -> get more counter values;
+* ` erlZenDeskStatsI:write_table_to_csv(Table,FileName). `
 	where Table = tickets/comments
 		  FileName -> the file you want to dump the information (readable CSV file, ex. "Tickets.csv")
+* ` erlZenDeskStatsI:dump_all_tables(DirectoryName). ` -> dump all mnesia tables
+to CSV files within the Directory provided as input
+* ` erlZenDeskStatsI:merge_stats_tables(). `-> all statistics tables are
+merged to "monthly_stats.csv" and "weekly_stats.csv" to make
+post-processing more convenient

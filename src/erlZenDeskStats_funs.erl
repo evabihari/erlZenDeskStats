@@ -228,7 +228,8 @@ insert_objects([Key|Keys],InTable,OutTable) ->
                  _ -> #stats{key=Key,
                              organization = Org,
                              year=Year,
-                             month_or_week=M_or_W}
+                             month_or_week=M_or_W,
+                             year_and_period={Year,M_or_W}}
              end,
     NewObj = case mnesia:dirty_read(InTable,Key) of
         [] ->
