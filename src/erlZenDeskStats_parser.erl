@@ -97,7 +97,8 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
                     end,
     case {Status,Store_tickets} of
         {"Deleted",_} -> ok;
-        {_,true} -> erlZenDeskStats_funs:store_to_db(tickets,T);
+        {_,true} -> 
+            erlZenDeskStats_funs:store_to_db(tickets,T);
         _ -> ok
     end,
 
@@ -146,7 +147,8 @@ parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
                erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,
                                                          {Org_name, CW},1),
                erlZenDeskStats_funs:store_to_db(comments,Comment_record);
-        _ -> ok
+        _ -> io:format("comment was already stored ~n",[]),
+            ok
     end,
     parse(comments,Comments,{Ticket_id,Org_name});
 parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
@@ -161,6 +163,7 @@ parse_comments(Id,Org_name) ->
     parse_comments(Id,Org_name,Url).
 
 parse_comments(Id,Org_name,Url) ->
+    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
     case erlZenDeskStats_funs:read_web(Url) of
         {success, {{_,200,"OK"},Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 
