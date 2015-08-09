@@ -74,7 +74,7 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
                priority = proplists:get_value("priority",List), 
                reopens = proplists:get_value("reopens",List), 
                replies= proplists:get_value("replies",List), 
-               req_name= proplists:get_value("req_name",List), 
+               req_name= lists:subtract(proplists:get_value("req_name",List), ","), 
                status= Status, 
                group_name= proplists:get_value("group_name",List),
                ticket_type= proplists:get_value("ticket_type",List), 
@@ -163,7 +163,7 @@ parse_comments(Id,Org_name) ->
     parse_comments(Id,Org_name,Url).
 
 parse_comments(Id,Org_name,Url) ->
-    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
+%    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
     case erlZenDeskStats_funs:read_web(Url) of
         {success, {{_,200,"OK"},Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 
@@ -182,7 +182,7 @@ parse_comments(Id,Org_name,Url) ->
                     gen_server:cast(erlZenDeskStats_worker, {error, {headers,Url}})
             end;
         {success, {{_,Code,Reason},_,_}} ->
-            error_logger:info_report("Comments not got, Code, Reason",[Code,Reason]),
+            error_logger:info_report(["Comments not got, Code, Reason",{Code,Reason}]),
             gen_server:cast(erlZenDeskStats_worker, {error, {http_answer,Code}});
 	{error, Reason} ->
 	    gen_server:cast(erlZenDeskStats_worker, {error, {Reason,Url}});

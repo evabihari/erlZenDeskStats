@@ -19,7 +19,7 @@ read_web(Url) ->
                        ], []) of
         {ok,Answer} -> {success,Answer};
         {error, socket_closed_remotely} -> 
-            error_logger:error_report("socket_closed_remotely",{url,Url}),
+            error_logger:error_report(["socket_closed_remotely",{url,Url}]),
             {{error,socket_closed_remotely},error};
         %%     error_logger:error_report("socket_closed_remotely",[]),
         %%    {{error,socket_closed_remotely},error};
@@ -141,13 +141,17 @@ pretty_io_list([Item|List],IO) when is_atom(Item) ->
     io:format(IO, " ~p,",[Item]),
     pretty_io_list(List,IO);
 
+pretty_io_list([[]|List],IO) ->
+          io:format(IO, "~s,",["N/A"]),
+          pretty_io_list(List,IO);
+                      
 pretty_io_list([Element|List],IO) when is_list (Element)->
     case is_space_in_element(Element) of
         true -> 
-                                                % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
-            io:format(IO, "~p,",[Element]);
+            % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
+            io:format(IO, "~s,",[Element]);
         _ ->
-            io:format(IO, "~p,",[Element])
+            io:format(IO, "~s,",[Element])
     end,
     pretty_io_list(List,IO).
 
@@ -205,84 +209,91 @@ merge_stats(Type) ->
                               {type, ordered_set},
                               {attributes, record_info(fields,stats)},
                               {record_name, stats}]),
-    store_data(Stats_tables,Table).
-
-store_data([],OutTable) ->
-    error_logger:info_report(["Data merged to stats table",{table, OutTable}]);
-store_data([InTable|List],OutTable) ->
-    Keys = mnesia:dirty_all_keys(InTable),
-    insert_objects(Keys, InTable, OutTable),
-    store_data(List,OutTable).
-
-insert_objects([],_In,_) ->
-    ok;
-insert_objects([Key|Keys],InTable,OutTable) ->
-    % InTable is weekly_stat_tickets_commented,weekly_stat_tickets_solved, weekly_stat_tickets_created
-    % or monthly_stat_tickets_commented,monthly_stat_tickets_solved, monthly_stat_tickets_created
-    % OutTable: monthly_stats or weekly_stats -> stats records are included
-    In_name=atom_to_list(InTable), % ex. "weekly_stat_tickets_commented"
-    Postfix=list_to_atom(lists:last(string:tokens(In_name,"_"))),
-    Org= element(1, Key),
-    {Year,M_or_W} = element(2, Key),
-    OldObj = case mnesia:dirty_read(OutTable,Key) of
-                 [Stat|_] when is_record(Stat, stats) -> Stat;
-                 _ -> #stats{key=Key,
-                             organization = Org,
-                             year=Year,
-                             month_or_week=M_or_W,
-                             year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),
-                             tickets_created=0,
-                             tickets_solved=0,
-                             tickets_commented=0}
-             end,
-    Old_created= OldObj#stats.tickets_created,
-    Old_solved= OldObj#stats.tickets_solved,
-    Old_commented= OldObj#stats.tickets_commented,
-
-    NewObj = case mnesia:dirty_read(InTable,Key) of
-        [] ->
-            OldObj;
-        [Obj|_] when is_record(Obj, stat_counter) ->
-                     Counter = Obj#stat_counter.counter,
-                     case Postfix of
-                         created -> OldObj#stats{tickets_created=Counter+Old_created};
-                         solved -> OldObj#stats{tickets_solved=Counter+Old_solved};
-                         commented -> OldObj#stats{tickets_commented=Counter+Old_commented};
-                         _ -> OldObj
-                      end;
-        _  -> 
-            OldObj
-    end,
-    ok=mnesia:dirty_write(OutTable, NewObj),
-    include_to_sum_table(OutTable,NewObj), 
-    insert_objects(Keys,InTable,OutTable).
-            
-include_to_sum_table(OutTable,Stat) when is_record(Stat, stats) ->
-    Key = Stat#stats.key, %{Org,{Y, M_or_W}}
-    {_Org,{Y, M_or_W}} = Key,
-    NewKey = {"SUM",{Y, M_or_W}},
-    Stat_Created=Stat#stats.tickets_created,
-    Stat_Solved= Stat#stats.tickets_solved,
-    Stat_Commented=Stat#stats.tickets_commented,  
-    NewObj = case mnesia:dirty_read(OutTable, NewKey) of
-        [] ->
-             %1st data for that date
-                     Stat#stats{key=NewKey,
-                                organization = "SUM",
-                                 tickets_created=0,
-                                 tickets_solved=0,
-                                 tickets_commented=0};
-        [Obj|_] -> 
-                     Created=Obj#stats.tickets_created,
-                     Solved= Obj#stats.tickets_solved,
-                     Commented=Obj#stats.tickets_commented,                    
-                     Stat#stats{
-                       key=NewKey,
-                       organization = "SUM",
-                       tickets_created= Stat_Created+Created,
-                       tickets_solved= Stat_Solved+Solved,
-                       tickets_commented= Stat_Commented+Commented}
-             end,
-    ok=mnesia:dirty_write(OutTable, NewObj).
+    merge_tables(Stats_tables, Table).
 
                      
+merge_tables(InTables, OutTable) ->
+    AllKeys = collect_all_keys(InTables,[]),
+    merge_tables(InTables, OutTable, AllKeys),
+    include_sum_records(OutTable, AllKeys).
+
+collect_all_keys([],Keys) ->
+    Keys;
+collect_all_keys([Table|Tables],Keys) ->
+    Keys_in_this_table=mnesia:dirty_all_keys(Table),
+    AllKeys = lists:umerge([Keys_in_this_table, Keys]),
+    collect_all_keys(Tables, AllKeys).
+
+merge_tables(_InTables, _OutTable, []) ->
+    ok;
+merge_tables(InTables, OutTable, [Key|Keys]) ->
+    Obj = create_object(InTables, Key),
+    ok=mnesia:dirty_write(OutTable, Obj),
+    %include_to_sum_table(OutTable,NewObj),
+    merge_tables(InTables, OutTable, Keys).
+
+create_object(InTables, Key) ->
+    Org= element(1, Key),
+    {Year,M_or_W} = element(2, Key),
+    create_object(InTables, Key, #stats{key=Key,
+                                       organization = Org,
+                                       year=Year,
+                                        month_or_week=M_or_W,
+                                        year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),
+                                        tickets_created=0,
+                                        tickets_solved=0,
+                                        tickets_commented=0}).
+
+create_object([], _Key, StatsObj) ->
+    StatsObj;
+create_object([InTable|InTables], Key, StatsObj) ->
+    In_name=atom_to_list(InTable), % ex. weekly_stat_tickets_commented
+    Postfix=list_to_atom(lists:last(string:tokens(In_name,"_"))), % ex. commented
+    NewObj = case mnesia:dirty_read(InTable, Key) of
+        [Obj|_] ->
+            Counter = Obj#stat_counter.counter,
+            case Postfix of
+                created ->
+                    StatsObj#stats{tickets_created = Counter};
+                solved ->
+                    StatsObj#stats{tickets_solved = Counter};
+                commented ->
+                    StatsObj#stats{tickets_commented = Counter}
+            end;
+        _ -> StatsObj
+    end,
+    create_object(InTables, Key, NewObj).
+
+include_sum_records(_OutTable, [])->
+    ok;
+include_sum_records(OutTable, [Key|Keys]) ->
+    {_Org,Date_part} = Key,
+    {Year,M_or_W}=Date_part,
+    MatchRecord = #stats{key={'_',Date_part}, _ = '_'},
+    StatList = ets:match_object(OutTable, MatchRecord),
+    Init_record = #stats{key={"SUM",Date_part},
+                         organization = "SUM",
+                         year=Year,
+                         month_or_week=M_or_W,
+                         year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),                                                      tickets_created=0,
+                         tickets_solved=0,
+                         tickets_commented=0},         
+    Result_record =sum_values(StatList,Init_record),
+    mnesia:dirty_write(OutTable,Result_record),
+    include_sum_records(OutTable, Keys).    
+
+sum_values([],Record) ->
+    Record;
+sum_values([Obj|List],Record) ->
+    R_tickets_created=Record#stats.tickets_created,
+    R_tickets_solved=Record#stats.tickets_solved,
+    R_tickets_commented=Record#stats.tickets_commented,
+    NewRecord = case Obj#stats.organization of
+                    "SUM" -> Record;
+                    _ ->
+                        Record#stats{
+                          tickets_created=R_tickets_created + Obj#stats.tickets_created,
+                          tickets_solved=R_tickets_solved + Obj#stats.tickets_solved,
+                          tickets_commented=R_tickets_commented + Obj#stats.tickets_commented}
+                end,
+    sum_values(List,NewRecord).
