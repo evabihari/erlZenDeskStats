@@ -41,7 +41,7 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
     Solved=proplists:get_value("solved_at",List),
-    Org_name = proplists:get_value("organization_name",List),
+    Org_name = erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
     erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,{Org_name, {CY,CM}},1),
     erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,{Org_name, CW},1),
 
@@ -70,7 +70,8 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
                solved_year = SY,
                solved_month = SM,
                solved_week = SW,
-               organization_name = proplists:get_value("organization_name",List),
+               organization_name = 
+                   erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
                priority = proplists:get_value("priority",List), 
                reopens = proplists:get_value("reopens",List), 
                replies= proplists:get_value("replies",List), 
@@ -147,7 +148,7 @@ parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
                erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,
                                                          {Org_name, CW},1),
                erlZenDeskStats_funs:store_to_db(comments,Comment_record);
-        _ -> io:format("comment was already stored ~n",[]),
+        _ -> 
             ok
     end,
     parse(comments,Comments,{Ticket_id,Org_name});

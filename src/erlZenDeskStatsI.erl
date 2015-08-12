@@ -1,21 +1,33 @@
 -module(erlZenDeskStatsI).
 -export([get_status/0,
+         get_last_check/0,
          get_counters/0,
          get_counter/1,
          get_counters/1,
          start_new_round/0,
          write_table_to_csv/2,
          dump_all_tables/1,
-         merge_stats_tables/0]).
-
+         merge_stats_tables/0,
+         gen_gnuplot_input_files/0,
+         gen_gnuplot_input_files/1,
+         gen_gnuplot_reports/1]).
 
 get_status() ->
     try
         gen_server:call(erlZenDeskStats_worker,{get_status}, 5)
     catch
-        exit:{timeout,_Other} -> "Parsing in progress, please try it later";
+        exit:{timeout,_Other} -> {erro,"Parsing in progress, please try it later"};
         Error:Reason ->
-            {Error, Reason}
+            {error,{Error, Reason}}
+    end.
+
+get_last_check() ->
+    try
+        gen_server:call(erlZenDeskStats_worker,{get_last_check}, 5)
+    catch
+        exit:{timeout,_Other} -> {erro,"Parsing in progress, please try it later"};
+        Error:Reason ->
+            {error,{Error, Reason}}
     end.
 
 get_counters() ->
@@ -73,3 +85,13 @@ merge_stats_tables() ->
     erlZenDeskStats_funs:merge_stats(weekly),
     erlZenDeskStats_funs:merge_stats(monthly).
 
+gen_gnuplot_input_files() ->
+    gen_gnuplot_input_files("tests").
+
+gen_gnuplot_input_files(Dir) ->
+    erlZenDeskStats_funs:gen_gnuplot_input_files(monthly,Dir),
+    erlZenDeskStats_funs:gen_gnuplot_input_files(weekly,Dir).
+
+gen_gnuplot_reports(Dir) ->
+    erlZenDeskStats_funs:gen_gnuplot_reports(Dir).
+ 

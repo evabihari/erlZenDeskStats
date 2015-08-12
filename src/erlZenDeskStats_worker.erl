@@ -79,6 +79,8 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({get_status},_From, State) ->
     {reply, State, State};
+handle_call({get_last_check},_From, State) ->
+    {reply, State#state.last_check, State};
 handle_call({get_counter, Counter},_From, State) ->
     Answer = case { State#state.parsing_in_progress,Counter} of
                  {true,_} -> "Parsing in progress, please try it later";
@@ -130,11 +132,11 @@ handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}
                             no_of_closed_tickets = Closed_no,
                             no_of_pending_tickets = Pending_no,
                             no_of_solved_tickets = Solved_no,
-                            no_of_open_tickets=Open_no,
-                            parsing_in_progress=false},
+                            no_of_open_tickets= Open_no,
+                            parsing_in_progress = false},
     ?Log("ZenDesk ticketes parsed successfully at ~p~n",[NewState#state.last_check]),
     io:format("ZenDesk tickets parsed successfully  new State is ~p~n",[NewState]),
-    {noreply, NewState};
+    {noreply, NewState#state{parsing_in_progress = false}};
 handle_cast({error,_Reason},State) ->
     ?Log("Error while getting tickets", [{reason,_Reason}]),
     {noreply, State};

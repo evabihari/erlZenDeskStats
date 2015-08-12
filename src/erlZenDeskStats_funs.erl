@@ -163,9 +163,15 @@ dashed_list([A|List],IO)->
     io:format(IO,"~p-",[A]),
     dashed_list(List,IO).
 
-replace_comma_with_space(String) ->
-    re:replace(String,","," ",[{return,list}]).
-
+remove_space([]) ->
+    [];
+remove_space(String) ->
+    case re:replace(String," ","_",[{return,list}]) of
+    String ->
+            String;
+    NewString ->
+            remove_space(NewString)
+    end.
 %% dirty_update_counter not working for 
 %% A Counter is an Oid being {CounterTab, CounterName}
 
@@ -297,3 +303,79 @@ sum_values([Obj|List],Record) ->
                           tickets_commented=R_tickets_commented + Obj#stats.tickets_commented}
                 end,
     sum_values(List,NewRecord).
+
+gen_gnuplot_input_files(Type,Dir) when is_atom(Type) ->
+    gen_gnuplot_input_files(atom_to_list(Type),Dir);
+gen_gnuplot_input_files(Type,Dir) ->
+    Table=list_to_atom(Type++"_stats"),
+    Keys=mnesia:dirty_all_keys(Table),
+    Orgs=collect_orgs(Keys,[]),
+    create_org_files(Orgs,Type,Dir).
+
+collect_orgs([],Orgs) ->
+    Orgs;
+collect_orgs([Key|Keys],Orgs) ->
+    {Org,_Date} = Key,
+    collect_orgs(Keys,lists:umerge([Org],Orgs)).
+
+create_org_files([],_Type,_Dir) ->
+    ok;
+create_org_files(Orgs,Type,Dir) when is_atom(Type) ->
+    create_org_files(Orgs,atom_to_list(Type),Dir);
+create_org_files([Org|Orgs],Type,Dir) ->
+    Table=list_to_atom(Type++"_stats"),
+    %MatchRecord = #stats{key={'_',Date_part}, _ = '_'},
+
+    Match_record = #stats{key={Org,'_'}, _ = '_'},
+    ObjList = ets:match_object(Table, Match_record),
+    ok=filelib:ensure_dir(Dir++"/"),
+    FileName = case Org of
+                   [] -> Dir++"/Non_org_"++Type++".csv";
+                   OName -> Dir++"/"++OName++"_"++Type++".csv"
+               end,
+    {ok, IoDevice} = file:open(FileName,[write]),
+    write_header_line(IoDevice, monthly_stats),
+    store_objects(ObjList, IoDevice),
+    file:close(IoDevice),
+    create_org_files(Orgs, Type,Dir).
+
+store_objects([],_IoDevice) ->
+    ok;
+store_objects([Obj|ObjList],IO) ->
+    pretty_print(Obj,IO),
+    io:format(IO, " ~n",[]),
+    store_objects(ObjList, IO).
+
+gen_gnuplot_reports(Dir) ->
+    case erlZenDeskStatsI:get_last_check() of
+       {error, Reason} ->
+            {error, Reason};
+        never ->
+            {error, "ZenDesk was not parsed yet"};
+        Value ->
+            case check_difference(Value) of
+                not_ok ->
+                    erlZenDeskStatsI:start_new_round(),
+                    {error, "Parse Zendesk before generating reports"};
+                ok ->
+                    ok=erlZenDeskStatsI:merge_stats_tables(),
+                    ok=erlZenDeskStatsI:dump_all_tables(Dir),
+                    ok=erlZenDeskStats_funs:gen_gnuplot_input_files(monthly,Dir),
+                    {ok,Current_dir}=file:get_cwd(),
+                    ok=file:set_cwd(Dir),
+                    os:cmd("cp ../my_csv2gnuplot.sh ."),
+                    os:cmd("./my_csv2gnuplot.sh"),
+                    ok=file:set_cwd(Current_dir),
+                    ok
+                end
+     end.
+
+check_difference({{Y,M,D},{H,Min,Sec}}) ->
+    case calendar:time_difference
+        ({{Y,M,D},{H,Min,Sec}},
+          calendar:local_time() ) of
+        {0,_} ->
+            ok;
+        _-> not_ok
+    end.
+                                  
