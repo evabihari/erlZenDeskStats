@@ -51,6 +51,11 @@ API calls:
 		  FileName -> the file you want to dump the information (readable CSV file, ex. "Tickets.csv")
 * ` erlZenDeskStatsI:dump_all_tables(DirectoryName). ` -> dump all mnesia tables
 to CSV files within the Directory provided as input
-* ` erlZenDeskStatsI:merge_stats_tables(). `-> all statistics tables are
-merged to "monthly_stats.csv" and "weekly_stats.csv" to make
+* ` erlZenDeskStatsI:merge_stats_tables(). `-> all statistics tables
+are merged to "monthly_stats.csv" and "weekly_stats.csv" to make
 post-processing more convenient
+* ` erlZenDeskStatsI:gen_gnuplot_reports(Dir) ` -> generate pdf files
+with gnuplot reports within the Directory provided as input
+ToDo: 2nd parameter should be the location and name of the gnuplot
+format (or csv?) file where journeyX timereports for the period are
+stored - would be good to check how to automate journeyX report generation...
