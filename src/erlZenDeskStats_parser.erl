@@ -41,13 +41,21 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
     Solved=proplists:get_value("solved_at",List),
+    Status = proplists:get_value("status",List),
     Org_name = erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
-    erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,{Org_name, {CY,CM}},1),
-    erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,{Org_name, CW},1),
+    case Status of
+        "Deleted" -> ok;
+        _ ->
+            erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,
+                                                      {Org_name, {CY,CM}},1),
+            erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,
+                                                      {Org_name, CW},1)
+    end,
 
-    {SY,SM,SW} = case Solved of
-                     null -> {undefined, undefined, undefined};
-                     Date ->
+    {SY,SM,SW} = case {Solved, Status} of
+                     {null,_} -> {undefined, undefined, undefined};
+                     {_Date, "Deleted"} -> {undefined, undefined, undefined};
+                     {Date,_} ->
                          {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
                          W=erlZenDeskStats_funs:week_number(Y,M,D),
                          erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
@@ -56,7 +64,6 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
                                                                    {Org_name, W},1),
                          {Y,M,W}
                  end,
-    Status = proplists:get_value("status",List),
     Updated_at = proplists:get_value("updated_at",List),
     Id = proplists:get_value("id",List),
 
@@ -157,14 +164,14 @@ parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
 
 
 parse_comments(Id,Org_name) ->
-    % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
-    % -H "Content-Type: application/json" -v -u {email_address}:{password}
+                                                % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
+                                                % -H "Content-Type: application/json" -v -u {email_address}:{password}
 
     Url = ?ZENDESK_URL++"/tickets/"++integer_to_list(Id)++"/comments.json",
     parse_comments(Id,Org_name,Url).
 
 parse_comments(Id,Org_name,Url) ->
-%    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
+                                                %    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
     case erlZenDeskStats_funs:read_web(Url) of
         {success, {{_,200,"OK"},Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 

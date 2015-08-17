@@ -57,8 +57,8 @@ week_number(Y,M,D)->
 clear_counters() ->
     mnesia:clear_table(monthly_stat_tickets_created),
     mnesia:clear_table(monthly_stat_tickets_solved),
-    % mnesia:clear_table(monthly_stat_tickets_commented),
-    % mnesia:clear_table(weekly_stat_tickets_commented),
+                                                % mnesia:clear_table(monthly_stat_tickets_commented),
+                                                % mnesia:clear_table(weekly_stat_tickets_commented),
     mnesia:clear_table(weekly_stat_tickets_created),
     mnesia:clear_table(weekly_stat_tickets_solved).
 
@@ -95,7 +95,7 @@ dump_table(IoDevice, Table_name) ->
             Exec = fun({Fun,Tab}) -> mnesia:foldl(Fun, IoDevice,Tab) end,
             mnesia:activity(transaction,Exec,[{Dump_to_file,Table_name}],mnesia_frag)
     end,
-    % io:format("~p table was dumped to ~p~n",[Table_name, IoDevice]),
+                                                % io:format("~p table was dumped to ~p~n",[Table_name, IoDevice]),
     IoDevice.
 
 write_header_line(IoDevice, Table_name) ->
@@ -142,13 +142,13 @@ pretty_io_list([Item|List],IO) when is_atom(Item) ->
     pretty_io_list(List,IO);
 
 pretty_io_list([[]|List],IO) ->
-          io:format(IO, "~s,",["N/A"]),
-          pretty_io_list(List,IO);
-                      
+    io:format(IO, "~s,",["N/A"]),
+    pretty_io_list(List,IO);
+
 pretty_io_list([Element|List],IO) when is_list (Element)->
     case is_space_in_element(Element) of
         true -> 
-            % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
+                                                % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
             io:format(IO, "~s,",[Element]);
         _ ->
             io:format(IO, "~s,",[Element])
@@ -167,9 +167,9 @@ remove_space([]) ->
     [];
 remove_space(String) ->
     case re:replace(String," ","_",[{return,list}]) of
-    String ->
+        String ->
             String;
-    NewString ->
+        NewString ->
             remove_space(NewString)
     end.
 %% dirty_update_counter not working for 
@@ -207,43 +207,51 @@ merge_stats(Type) when is_atom(Type) ->
     merge_stats(atom_to_list(Type));
 merge_stats(Type) ->
     Stats_tables = [T || T <- mnesia:system_info(tables), string:str(atom_to_list(T),Type++"_stat_tickets")>0],
-    % Stats tables contains records with {attributes,[key, counter]}  
+                                                % Stats tables contains records with {attributes,[key, counter]}  
     Table=list_to_atom(Type++"_stats"),
     mnesia:delete_table(Table),
     mnesia:create_table(Table,
-                             [{disc_copies,[node()]},
-                              {type, ordered_set},
-                              {attributes, record_info(fields,stats)},
-                              {record_name, stats}]),
+                        [{disc_copies,[node()]},
+                         {type, ordered_set},
+                         {attributes, record_info(fields,stats)},
+                         {record_name, stats}]),
     merge_tables(Stats_tables, Table).
 
-                     
+
 merge_tables(InTables, OutTable) ->
-    AllKeys = collect_all_keys(InTables,[]),
+    {AllKeys,AllOrg} = collect_all_keys(InTables,{[],[]}),
+    create_initial_records(OutTable, AllOrg),
     merge_tables(InTables, OutTable, AllKeys),
     include_sum_records(OutTable, AllKeys).
 
-collect_all_keys([],Keys) ->
-    Keys;
-collect_all_keys([Table|Tables],Keys) ->
+collect_all_keys([],{Keys,Orgs}) ->
+    {Keys,Orgs};
+collect_all_keys([Table|Tables],{Keys,Orgs}) ->
     Keys_in_this_table=mnesia:dirty_all_keys(Table),
     AllKeys = lists:umerge([Keys_in_this_table, Keys]),
-    collect_all_keys(Tables, AllKeys).
+    AllOrgs = collect_organisations(AllKeys,Orgs),
+    collect_all_keys(Tables, {AllKeys,AllOrgs}).
+
+collect_organisations([],Orgs) ->
+    Orgs;
+collect_organisations([{Org,_}|Keys],Orgs) ->
+    AllOrgs =  lists:umerge([[Org], Orgs]),
+    collect_organisations(Keys, AllOrgs).
 
 merge_tables(_InTables, _OutTable, []) ->
     ok;
 merge_tables(InTables, OutTable, [Key|Keys]) ->
     Obj = create_object(InTables, Key),
     ok=mnesia:dirty_write(OutTable, Obj),
-    %include_to_sum_table(OutTable,NewObj),
+                                                %include_to_sum_table(OutTable,NewObj),
     merge_tables(InTables, OutTable, Keys).
 
 create_object(InTables, Key) ->
     Org= element(1, Key),
     {Year,M_or_W} = element(2, Key),
     create_object(InTables, Key, #stats{key=Key,
-                                       organization = Org,
-                                       year=Year,
+                                        organization = Org,
+                                        year=Year,
                                         month_or_week=M_or_W,
                                         year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),
                                         tickets_created=0,
@@ -256,18 +264,18 @@ create_object([InTable|InTables], Key, StatsObj) ->
     In_name=atom_to_list(InTable), % ex. weekly_stat_tickets_commented
     Postfix=list_to_atom(lists:last(string:tokens(In_name,"_"))), % ex. commented
     NewObj = case mnesia:dirty_read(InTable, Key) of
-        [Obj|_] ->
-            Counter = Obj#stat_counter.counter,
-            case Postfix of
-                created ->
-                    StatsObj#stats{tickets_created = Counter};
-                solved ->
-                    StatsObj#stats{tickets_solved = Counter};
-                commented ->
-                    StatsObj#stats{tickets_commented = Counter}
-            end;
-        _ -> StatsObj
-    end,
+                 [Obj|_] ->
+                     Counter = Obj#stat_counter.counter,
+                     case Postfix of
+                         created ->
+                             StatsObj#stats{tickets_created = Counter};
+                         solved ->
+                             StatsObj#stats{tickets_solved = Counter};
+                         commented ->
+                             StatsObj#stats{tickets_commented = Counter}
+                     end;
+                 _ -> StatsObj
+             end,
     create_object(InTables, Key, NewObj).
 
 include_sum_records(_OutTable, [])->
@@ -281,7 +289,7 @@ include_sum_records(OutTable, [Key|Keys]) ->
                          organization = "SUM",
                          year=Year,
                          month_or_week=M_or_W,
-                         year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),                                                      tickets_created=0,
+                         year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(M_or_W),                                                            tickets_created=0,
                          tickets_solved=0,
                          tickets_commented=0},         
     Result_record =sum_values(StatList,Init_record),
@@ -324,7 +332,7 @@ create_org_files(Orgs,Type,Dir) when is_atom(Type) ->
     create_org_files(Orgs,atom_to_list(Type),Dir);
 create_org_files([Org|Orgs],Type,Dir) ->
     Table=list_to_atom(Type++"_stats"),
-    %MatchRecord = #stats{key={'_',Date_part}, _ = '_'},
+                                                %MatchRecord = #stats{key={'_',Date_part}, _ = '_'},
 
     Match_record = #stats{key={Org,'_'}, _ = '_'},
     ObjList = ets:match_object(Table, Match_record),
@@ -348,7 +356,7 @@ store_objects([Obj|ObjList],IO) ->
 
 gen_gnuplot_reports(Dir) ->
     case erlZenDeskStatsI:get_last_check() of
-       {error, Reason} ->
+        {error, Reason} ->
             {error, Reason};
         never ->
             {error, "ZenDesk was not parsed yet"};
@@ -367,15 +375,51 @@ gen_gnuplot_reports(Dir) ->
                     os:cmd("./my_csv2gnuplot.sh"),
                     ok=file:set_cwd(Current_dir),
                     ok
-                end
-     end.
+            end
+    end.
 
 check_difference({{Y,M,D},{H,Min,Sec}}) ->
     case calendar:time_difference
         ({{Y,M,D},{H,Min,Sec}},
-          calendar:local_time() ) of
+         calendar:local_time() ) of
         {0,_} ->
             ok;
         _-> not_ok
     end.
-                                  
+
+ create_initial_records(Table,Orgs) ->
+    Start_date = {2013,10},
+    {{EY,EM,_},_} = calendar:local_time(),
+    % End_date = integer_to_list(EY) ++ "/" ++ integer_to_list(EM),
+    End_date = {EY,EM},
+    insert_records(Table,Orgs,{Start_date,End_date}).
+
+ insert_records(_Table,[],_)->
+    ok;
+ insert_records(Table,[Org|Orgs],{Start_date,End_date}) ->
+    insert_records_for_organization(Table,Org,{Start_date,End_date}),
+    insert_records(Table, Orgs,{Start_date,End_date}).
+
+ insert_records_for_organization(Table,Org,{End,End}) ->
+    insert_rec_for_organization(Table,Org,End);
+ insert_records_for_organization(Table,Org,{Date, End}) ->
+    {Year,M_W} = Date,
+    insert_rec_for_organization(Table,Org,{Year,M_W}),
+    NewDate = case {Table,(M_W +1)} of
+        {monthly_stats,NewMonth} when NewMonth < 13 -> {Year,NewMonth};
+        {weekly_stats,NewWeek} when NewWeek < 53 -> {Year, NewWeek};
+        _NewMonth ->
+                       {Year+1, 1}
+              end,
+   insert_records_for_organization(Table,Org,{NewDate, End}).
+             
+insert_rec_for_organization(Table,Org,Date) ->
+    {Year, Month} = Date,
+    Record = #stats{key={Org,{Year,Month}},
+                    organization = Org,
+                    month_or_week=Month,
+                    year_and_period=integer_to_list(Year) ++ "/" ++ integer_to_list(Month),
+                    tickets_created=0,
+                    tickets_solved=0,
+                    tickets_commented=0},
+    mnesia:dirty_write(Table,Record).
