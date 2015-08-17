@@ -55,7 +55,15 @@ to CSV files within the Directory provided as input
 are merged to "monthly_stats.csv" and "weekly_stats.csv" to make
 post-processing more convenient
 * ` erlZenDeskStatsI:gen_gnuplot_reports(Dir) ` -> generate pdf files
+with histograms
+* `erlZenDeskStatsI:gen_gnuplot_reports(Mode,Dir ` -> genereate pdf
+reports
+ Mode = histogram | graph | shell script executable name which will
+generate the gnu scripts and the reports.
 with gnuplot reports within the Directory provided as input
+At this moment journexy X reported hours are stored in teh same
+directory as the reports will be stored and are called "timereports.csv"
+
 ToDo: 2nd parameter should be the location and name of the gnuplot
 format (or csv?) file where journeyX timereports for the period are
 stored - would be good to check how to automate journeyX report generation...

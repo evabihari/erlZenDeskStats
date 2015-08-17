@@ -354,7 +354,12 @@ store_objects([Obj|ObjList],IO) ->
     io:format(IO, " ~n",[]),
     store_objects(ObjList, IO).
 
-gen_gnuplot_reports(Dir) ->
+gen_gnuplot_reports(graph, Dir) ->
+    gen_gnuplot_reports("my_csv2gnuplot.sh", Dir);
+gen_gnuplot_reports(histogram, Dir) ->
+    gen_gnuplot_reports("histogram_csv2gnuplot.sh", Dir);
+
+gen_gnuplot_reports(Script, Dir) ->
     case erlZenDeskStatsI:get_last_check() of
         {error, Reason} ->
             {error, Reason};
@@ -371,8 +376,10 @@ gen_gnuplot_reports(Dir) ->
                     ok=erlZenDeskStats_funs:gen_gnuplot_input_files(monthly,Dir),
                     {ok,Current_dir}=file:get_cwd(),
                     ok=file:set_cwd(Dir),
-                    os:cmd("cp ../my_csv2gnuplot.sh ."),
-                    os:cmd("./my_csv2gnuplot.sh"),
+                    Cmd="cp ../scripts"++Script++" .",
+                    os:cmd(Cmd),
+                    Cmd2="./"++Script,
+                    os:cmd(Cmd2),
                     ok=file:set_cwd(Current_dir),
                     ok
             end

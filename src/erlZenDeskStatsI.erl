@@ -10,7 +10,8 @@
          merge_stats_tables/0,
          gen_gnuplot_input_files/0,
          gen_gnuplot_input_files/1,
-         gen_gnuplot_reports/1]).
+         gen_gnuplot_reports/1,
+         gen_gnuplot_reports/2]).
 
 get_status() ->
     try
@@ -93,5 +94,9 @@ gen_gnuplot_input_files(Dir) ->
     erlZenDeskStats_funs:gen_gnuplot_input_files(weekly,Dir).
 
 gen_gnuplot_reports(Dir) ->
-    erlZenDeskStats_funs:gen_gnuplot_reports(Dir).
+    erlZenDeskStats_funs:gen_gnuplot_reports( histogram, Dir).
+
+gen_gnuplot_reports(Mode, Dir) -> 
+    erlZenDeskStats_funs:gen_gnuplot_reports(Mode, Dir).
+
 
