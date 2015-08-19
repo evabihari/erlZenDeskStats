@@ -43,6 +43,9 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
     Solved=proplists:get_value("solved_at",List),
     Status = proplists:get_value("status",List),
     Org_name = erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
+    Updated_at = proplists:get_value("updated_at",List),
+    Id = proplists:get_value("id",List),
+
     case Status of
         "Deleted" -> ok;
         _ ->
@@ -64,8 +67,7 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
                                                                    {Org_name, W},1),
                          {Y,M,W}
                  end,
-    Updated_at = proplists:get_value("updated_at",List),
-    Id = proplists:get_value("id",List),
+
 
     T=#tickets{id = Id,
                created_at = Created,

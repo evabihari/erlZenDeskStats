@@ -354,12 +354,17 @@ store_objects([Obj|ObjList],IO) ->
     io:format(IO, " ~n",[]),
     store_objects(ObjList, IO).
 
-gen_gnuplot_reports(graph, Dir) ->
-    gen_gnuplot_reports("my_csv2gnuplot.sh", Dir);
-gen_gnuplot_reports(histogram, Dir) ->
-    gen_gnuplot_reports("histogram_csv2gnuplot.sh", Dir);
+%% gen_gnuplot_reports(graph, Dir) ->
+%%     gen_gnuplot_reports("my_csv2gnuplot.sh", Dir);
+%% gen_gnuplot_reports(histogram, Dir) ->
+%%     gen_gnuplot_reports("histogram_csv2gnuplot.sh", Dir);
 
-gen_gnuplot_reports(Script, Dir) ->
+gen_gnuplot_reports(Type, Dir) when is_atom(Type) ->
+    gen_gnuplot_reports(atom_to_list(Type), Dir);
+gen_gnuplot_reports(Type, Dir) ->              
+     generate_gnuplot_reports("generate_reports_gnuplot.sh",Type, Dir).
+
+generate_gnuplot_reports(Script,Type, Dir) ->
     case erlZenDeskStatsI:get_last_check() of
         {error, Reason} ->
             {error, Reason};
@@ -376,10 +381,10 @@ gen_gnuplot_reports(Script, Dir) ->
                     ok=erlZenDeskStats_funs:gen_gnuplot_input_files(monthly,Dir),
                     {ok,Current_dir}=file:get_cwd(),
                     ok=file:set_cwd(Dir),
-                    Cmd="cp ../scripts"++Script++" .",
+                    Cmd="cp ../scripts/"++Script++" .",
                     os:cmd(Cmd),
-                    Cmd2="./"++Script,
-                    os:cmd(Cmd2),
+                    Cmd2="./"++Script++" "++Type,
+                    Result=os:cmd(Cmd2),
                     ok=file:set_cwd(Current_dir),
                     ok
             end
