@@ -20,7 +20,7 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {last_check=never,
-                parsing_in_progress=true,
+                parsing_in_progress=false,
                 no_of_tickets = 0,
                 no_of_closed_tickets = 0,
                 no_of_pending_tickets = 0,
@@ -121,9 +121,9 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({start_walktrough}, State) ->
+handle_cast({start_walktrough, Pid}, State) ->
     erlZenDeskStats_parser:start(),
-    {noreply, State#state{parsing_in_progress=true}};
+    {noreply, State#state{parsing_in_progress=Pid}};
 
 handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}}, State) ->
     error_logger:info_report("zendesk_parsed"),
@@ -136,6 +136,13 @@ handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}
                             parsing_in_progress = false},
     ?Log("ZenDesk ticketes parsed successfully at ~p~n",[NewState#state.last_check]),
     io:format("ZenDesk tickets parsed successfully  new State is ~p~n",[NewState]),
+    case is_pid(State#state.parsing_in_progress) of
+        true ->
+            Pid = State#state.parsing_in_progress,
+            Pid!{parsing_ready};
+        _ ->
+            ok
+    end,
     {noreply, NewState#state{parsing_in_progress = false}};
 handle_cast({error,_Reason},State) ->
     ?Log("Error while getting tickets", [{reason,_Reason}]),

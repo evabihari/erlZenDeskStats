@@ -55,8 +55,9 @@ function gnu_script_histogram_part()
 	    TMP='temp.tmp'
 	    title=`basename "$filename" .gnuplot`
 	    legend=`echo ${title%_monthly}`
+	    SUM_title=`echo "SUM_"$F`
 	    # legend=`echo $title | sed -e 's/_monthly$//'` 
-	    if [ $title == "SUM_monthly" ]
+	    if [ $title == $SUM_title ]
 	    then
 		echo "SUM"
 	    else
@@ -90,11 +91,17 @@ function gnu_script_graph_part()
 	    let i++
 	    TMP='temp.tmp'
 	    title=`basename "$filename" .gnuplot`
-	    if [ $i == 1 ]
+	    SUM_title=`echo "SUM_"$F`
+	    if [ $title == $SUM_title ]
 	    then
-		echo "plot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines " >> $FILE
-	    else	   
- 		echo "replot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines " >> $FILE
+		echo "SUM"
+	    else
+		if [ $i == 1 ]
+		then
+		    echo "plot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines ls 1" >> $FILE
+		else	   
+ 		    echo "replot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines ls $i" >> $FILE
+		fi
 	    fi
 	    echo >> "$FILE"
 	done
@@ -145,21 +152,25 @@ function create_gnuplot_script()
     # function declaration
     # Parameter1 is the column of the X value for the graphs
     # Parameter2 is the column of the Y value for the graphs
-    # Parameter3 is the Title of the graph
-    # Parameter4 is the name of the pdf file the result will be stored
-    # Parameter5 is format (pdf/X11)
+    # Parameter3 os the frequency of the graph
+    # Parameter4 is the Title of the graph
+    # Parameter5 is the name of the pdf file the result will be stored
+    # Parameter6 is format (pdf/X11)
     # Parameter7 is the y label (default = "number of tickets")
     # Parameter8 is the axis to be used (default = x1y1)
     
     XTIC=$1
     COLUMN=$2
-    TITLE=$3
-    PDF_FILE=${4:-"result.pdf"} ;
-    FORMAT=${5:-"X11"} ;
-    YLABEL=${6:-"number of tickets"}
-    AXIS=${7:-"x1y1"} ;
+    FREQ=${3:-"monthly"}
+    TITLE=$4
+    PDF_FILE=${5:-"result.pdf"} ;
+    FORMAT=${6:-"X11"} ;
+    YLABEL=${7:-"number of tickets"}
+    AXIS=${8:-"x1y1"} ;
     TEMP="SUM_monthly.gnuplot"
-    GNUPLOT="$OUTPUT"
+    # GNUPLOT="$OUTPUT"
+    OUT_FILE=`echo "$FREQ_$COLUMN.p"`
+    GNUPLOT="$OUT_FILE"
     # gnuplot script creation
     COUNT=`head -n1 "$TEMP" | wc -w | sed s/" "*//g`
     # build output/format statement
@@ -208,12 +219,15 @@ while read i ; do
   ~/external/gnuplot/csv2gnuplot.sh -i "$i"  -o "$A"
   # echo "$A"
 done
-# call the function to cretae the script for us
+# call the function to create the script for us
 
 convert "journyx_report.txt"
 
-create_gnuplot_script 5 6 "Monthly statistics for all Riak tickets sent towards ESL" "monthly_created.pdf" "pdf"
-create_gnuplot_script 5 7 "Monthly statistics for all Riak tickets solved by ESL" "monthly_solved.pdf" "pdf"
-create_gnuplot_script 5 8 "Monthly statistics for all Riak tickets commented by ESL and the customer" "monthly_commented.pdf" "pdf" "number of comments" "x1y1" 
+Title=`echo $F"_created.pdf"`
+create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title "pdf"
+Title=`echo $F"_solved.pdf"`
+create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title "pdf"
+Title=`echo $F"_commented.pdf"`
+create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title "pdf" "number of comments" "x1y1" 
 
 rm $OUTTXT

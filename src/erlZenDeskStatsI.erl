@@ -52,7 +52,7 @@ get_counter(Counter) ->
     end.
 
 start_new_round() ->
-    gen_server:cast(erlZenDeskStats_worker,{start_walktrough}).
+    gen_server:cast(erlZenDeskStats_worker,{start_walktrough, self()}).
 
 write_table_to_csv(Table,FileName) ->
     try 
@@ -80,7 +80,6 @@ dump_tables([TableName|Tables],Directory) ->
     write_table_to_csv(TableName,FileName),
     io:format("~p dumped ~n",[FileName]),
     dump_tables(Tables,Directory).
-
 
 merge_stats_tables() ->
     erlZenDeskStats_funs:merge_stats(weekly),
