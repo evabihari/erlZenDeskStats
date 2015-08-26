@@ -136,6 +136,8 @@ handle_cast({zendesk_parsed,{Tickets_no,Closed_no,Pending_no,Open_no, Solved_no}
                             parsing_in_progress = false},
     ?Log("ZenDesk ticketes parsed successfully at ~p~n",[NewState#state.last_check]),
     io:format("ZenDesk tickets parsed successfully  new State is ~p~n",[NewState]),
+    erlZenDeskStats_funs:merge_stats(weekly),
+    erlZenDeskStats_funs:merge_stats(monthly),
     case is_pid(State#state.parsing_in_progress) of
         true ->
             Pid = State#state.parsing_in_progress,

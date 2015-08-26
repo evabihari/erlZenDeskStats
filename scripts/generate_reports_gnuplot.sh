@@ -3,7 +3,6 @@
 # Parameter1: report type: graph/histogram (default is histogram)
 # Parameter2: frequency; default is: monthly
 # Parameter3: generated gnuplot script name; default is: result.p
-# Parameter4: generated result (pd) name; default is: result.pdf
 
 export OUTTXT="/tmp/out_$$.txt"
 
@@ -23,12 +22,12 @@ function gnu_script_init_part()
    FILE=$1
    echo "# gnuplot script for '$FILE'" > "$FILE"
    echo "set terminal postscript" >> "$FILE"
-   echo "set key left" >> "$FILE"
+   echo "set key left invert" >> "$FILE"
    echo "set grid y" >> "$FILE"
    echo "  set yrange [0 :*]" >> "$FILE"
    echo "  set ylabel \"$YLABEL\" tc lt 1" >> "$FILE"
    echo "  set ytics nomirror" >> "$FILE"
-   echo "  set xtics nomirror rotate by -45 scale 0 font \",10\"" >> "$FILE"
+   echo "  set xtics nomirror rotate by -45 scale 0 font \",10\" " >> "$FILE"
    echo "  set key noinvert box" >> "$FILE"
    echo "  set title \"$2\" " >> "$FILE"
    echo "  rgb(r,g,b)=int(255*r)*65536+int(255*g)*256+int(255*b)" >>  "$FILE"
@@ -40,10 +39,12 @@ function gnu_script_init_part()
 
 function gnu_script_histogram_part()
 {
-    # Parameter1: filename
-    # Paramater2: xtic
-    # Parameter3: column
-    FILE=$1
+    # Parameter1: type: monthly|weekly
+    # Parameter2: filename
+    # Paramater3: xtic
+    # Parameter4: column
+    Type=$1
+    FILE=$2
     echo "  set style data histograms" >> "$FILE"
     echo "  set style histogram rowstacked" >> "$FILE"
     echo "  set style fill solid border -1" >> "$FILE"
@@ -56,16 +57,17 @@ function gnu_script_histogram_part()
 	    title=`basename "$filename" .gnuplot`
 	    legend=`echo ${title%_monthly}`
 	    SUM_title=`echo "SUM_"$F`
-	    # legend=`echo $title | sed -e 's/_monthly$//'` 
+	    # legend=`echo $title | sed -e 's/_monthly$//'`
+	    # ($3>10 ? $2 : 1/0)
 	    if [ $title == $SUM_title ]
 	    then
 		echo "SUM"
 	    else
 		if [ $i == 1 ]
 		then
-		    echo "plot \"$filename\" using $3:xtic($2) title \"$legend\" noenhanced ls 1 " >> $FILE
+		    echo "plot \"$filename\" using $4:xtic($3) title \"$legend\" noenhanced ls 1 " >> $FILE
 		else	   
- 		    echo "replot \"$filename\" using $3:xtic($2) title \"$legend\" noenhanced ls $i " >> $FILE
+ 		    echo "replot \"$filename\" using $4:xtic($3) title \"$legend\" noenhanced ls $i " >> $FILE
 		fi
 	    fi
 	    echo >> "$FILE"
@@ -74,15 +76,26 @@ function gnu_script_histogram_part()
 
 function gnu_script_graph_part()
 {
-    # Parameter1: filename
-    # Parameter2: XValue
-    # Paramater3: YValue
-    FILE=$1
+    # Parameter1: type (weekly|monthly)
+    # Parameter2: filename
+    # Parameter3: XValue
+    # Paramater4: YValue
+    Type=$1
+    echo $Type
+    FILE=$2
     AXIS="x1y1"
-    echo "  set timefmt \"%Y/%m\" " >> "$FILE"
-    echo "  set xdata time" >> "$FILE"
-    echo "  set format x \"%Y/%m\" " >> "$FILE"
-    echo "  set xrange [\"2013/10\":\"2015/09\"]" >> "$FILE"   
+    if [ $Type == monthly ]
+       then
+	   TimeStr="\"%Y/%m\" "
+	   X_Range="[\"2013/10\":*]"
+    else
+	TimeStr="\"%Y/%m/%d\" "
+	X_Range="[\"2014/10/01\":*]"
+    fi
+    echo "  set timefmt $TimeStr " >> "$FILE"
+    echo "  set xdata time " >> "$FILE"
+    echo "  set format x $TimeStr " >> "$FILE"
+    echo "  set xrange $X_Range " >> "$FILE"   
     echo "  set yrange [0 :*]" >> "$FILE"
     # the plots
     i=0
@@ -98,9 +111,9 @@ function gnu_script_graph_part()
 	    else
 		if [ $i == 1 ]
 		then
-		    echo "plot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines ls 1" >> $FILE
+		    echo "plot \"$filename\" using $3:$4 title \"$title\" noenhanced axis $AXIS with lines ls 1" >> $FILE
 		else	   
- 		    echo "replot \"$filename\" using $2:$3 title \"$title\" noenhanced axis $AXIS with lines ls $i" >> $FILE
+ 		    echo "replot \"$filename\" using $3:$4 title \"$title\" noenhanced axis $AXIS with lines ls $i" >> $FILE
 		fi
 	    fi
 	    echo >> "$FILE"
@@ -114,7 +127,7 @@ function gnu_script_timereport_graph()
     echo "  set timefmt \"%Y/%m\" " >> "$FILE"
     echo "  set x2data time" >> "$FILE"
     echo "  set format x2 \"%Y/%m\" " >> "$FILE"
-    echo "  set x2range [\"2013/10\":\"2015/09\"]" >> "$FILE"
+    echo "  set x2range [\"2013/10\":*]" >> "$FILE"
     echo "  set y2label 'no of reported hours' tc lt 2" >> "$FILE"
     echo "  set y2tics 20 nomirror tc lt 2" >> "$FILE"
     echo "  replot \"$OUTTXT\" using 1:2 title \"Reported hours\" axis x2y2 with lines lc black " >> $FILE 
@@ -181,13 +194,16 @@ function create_gnuplot_script()
     # the plots
     if [ "$TYPE" = "histogram" ]
        then
-	   gnu_script_histogram_part $GNUPLOT $XTIC $COLUMN
+	   gnu_script_histogram_part $FREQ $GNUPLOT $XTIC $COLUMN
     else
-	    gnu_script_graph_part $GNUPLOT $1 $2
+	    gnu_script_graph_part $FREQ $GNUPLOT $1 $2
     fi
-    
-    # timereport graph
-    gnu_script_timereport_graph $GNUPLOT
+
+    if [ FREQ == "monthly" ]
+       then
+	   # timereport graph
+	   gnu_script_timereport_graph $GNUPLOT
+       fi
 
     # gnuplot output handling part
     create_output $GNUPLOT $FORMAT
@@ -224,6 +240,7 @@ done
 convert "journyx_report.txt"
 
 Title=`echo $F"_created.pdf"`
+echo $Title
 create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title "pdf"
 Title=`echo $F"_solved.pdf"`
 create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title "pdf"

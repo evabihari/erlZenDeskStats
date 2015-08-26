@@ -137,23 +137,6 @@ pretty_io_list([[]|List],IO) ->
  pretty_io_list([Element|List],IO) when is_list (Element)->
     io:format(IO, "~s,",[Element]),
     pretty_io_list(List,IO).
-%% pretty_io_list([Element|List],IO) when is_list (Element)->
-%%     case is_space_in_element(Element) of
-%%         true -> 
-%%                                                 % io:format(IO, "~p,",[replace_comma_with_space(Element)]);
-%%             io:format(IO, "~s,",[Element]);
-%%         _ ->
-%%             io:format(IO, "~s,",[Element])
-%%     end,
-%%     pretty_io_list(List,IO).
-
-%% dashed_list([A],IO) when is_tuple(A) -> % key can be {org,{year,week}}
-%%     dashed_list(tuple_to_list(A),IO);
-%% dashed_list([],IO) ->
-%%     ok;
-%% dashed_list([A|List],IO)->
-%%     io:format(IO,"~p-",[A]),
-%%     dashed_list(List,IO).
 
 remove_space([]) ->
     [];
@@ -382,17 +365,11 @@ week_no_to_date([Obj|List],ObjList) ->
     Year_and_period = calculate_year_and_period(weekly, Year, M_or_W),
     week_no_to_date(List,[Obj#stats{year_and_period=Year_and_period}|ObjList]).    
     
-%% gen_gnuplot_reports(graph, Dir) ->
-%%     gen_gnuplot_reports("my_csv2gnuplot.sh", Dir);
-%% gen_gnuplot_reports(histogram, Dir) ->
-%%     gen_gnuplot_reports("histogram_csv2gnuplot.sh", Dir);
+gen_gnuplot_reports(Dir, Params) ->  
+    generate_gnuplot_reports("generate_reports_gnuplot.sh",Dir,Params).
 
-gen_gnuplot_reports(Type, Dir) when is_atom(Type) ->
-    gen_gnuplot_reports(atom_to_list(Type), Dir);
-gen_gnuplot_reports(Type, Dir) ->              
-     generate_gnuplot_reports("generate_reports_gnuplot.sh",Type, Dir).
-
-generate_gnuplot_reports(Script,Type, Dir) ->
+generate_gnuplot_reports(Script, Dir, Args) ->
+    {Type,Freq} = {get_param(type, histogram, Args),get_param(freq,monthly, Args)},
     case erlZenDeskStatsI:get_last_check() of
         {error, Reason} ->
             {error, Reason};
@@ -405,7 +382,7 @@ generate_gnuplot_reports(Script,Type, Dir) ->
                     receive
                         {parsing_ready} -> 
                             io:format("parsing ready, try again ~n",[]),
-                            generate_gnuplot_reports(Script,Type, Dir)
+                            generate_gnuplot_reports(Script, Dir,{Type,Freq})
                        after 1000 ->
                             io:format("parsing still not finalized, try again later ~n",[]),
                                ok
@@ -419,7 +396,7 @@ generate_gnuplot_reports(Script,Type, Dir) ->
                     ok=file:set_cwd(Dir),
                     Cmd="cp ../scripts/"++Script++" .",
                     os:cmd(Cmd),
-                    Cmd2="./"++Script++" "++Type,
+                    Cmd2="./"++Script++" "++atom_to_list(Type)++" "++atom_to_list(Freq),
                     os:cmd(Cmd2),
                     ok=file:set_cwd(Current_dir),
                     ok
@@ -436,9 +413,12 @@ check_difference({{Y,M,D},{H,Min,Sec}}) ->
     end.
 
  create_initial_records(Table,Orgs) ->
-    Start_date = {2013,10},
-    {{EY,EM,_},_} = calendar:local_time(),
-    End_date = {EY,EM},
+    {{EY,EM,ED},_} = calendar:local_time(),
+    {Start_date,End_date} = case Table of
+                     monthly_stats-> {{2013,10},{EY,EM}};
+                     _ ->  Week=week_number(EY,EM,ED),
+                                    {{2013,45}, Week} % for weekly stats start with Nov.2013
+                 end,
     insert_records(Table,Orgs,{Start_date,End_date}).
 
  insert_records(_Table,[],_)->
@@ -449,9 +429,13 @@ check_difference({{Y,M,D},{H,Min,Sec}}) ->
 
  insert_records_for_organization(Table,Org,{End,End}) ->
     insert_rec_for_organization(Table,Org,End);
+ insert_records_for_organization(_Table,_Org,{{SY,_SM}, {EY,_EM}}) when SY>EY ->
+    ok;
+ insert_records_for_organization(_Table,_Org,{{SY,SM}, {SY,EM}}) when SM>EM ->
+    ok;
  insert_records_for_organization(Table,Org,{Date, End}) ->
     {Year,M_W} = Date,
-    insert_rec_for_organization(Table,Org,{Year,M_W}),
+    insert_rec_for_organization(Table,Org,Date),
     NewDate = case {Table,(M_W +1)} of
         {monthly_stats,NewMonth} when NewMonth < 13 -> {Year,NewMonth};
         {weekly_stats,NewWeek} when NewWeek < 53 -> {Year, NewWeek};
@@ -485,3 +469,15 @@ monday_of_the_first_week(Year) ->
 monday_of_the_week({Year, Week}) when is_integer(Year), is_integer(Week) ->
     MondayInFirstWeek = monday_of_the_first_week(Year),
     calendar:gregorian_days_to_date((MondayInFirstWeek + ((Week - 1) * 7))).
+
+get_param(Key,Default,List) when is_atom(Key) ->
+    case lists:keysearch(Key,1,List) of
+        false ->
+            Default;
+        {value,{Key,Value}} when is_atom(Value) ->
+            Value;
+        {value,{Key,Value}} ->
+            list_to_atom(Value)
+    end;
+get_param(Key,Default,List) ->
+    get_param(list_to_atom(Key),Default,List).

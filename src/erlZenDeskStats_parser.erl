@@ -37,6 +37,79 @@ gen_url(Src, Query) ->
 parse(tickets,[],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no};
 parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
+    Group_name = proplists:get_value("group_name", List),
+    handle_ticket(Group_name,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
+parse(tickets,[_Other|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
+    parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
+
+parse(comments,[],_) ->
+    ok;
+parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
+    Created=proplists:get_value("created_at",C),
+    {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
+    CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
+    Comment_id=proplists:get_value("id",C),
+    Comment_record=#comments{
+                      ticket_id=Ticket_id,
+                      organization=Org_name,
+                      id=Comment_id,
+                      type=proplists:get_value("comment",C),
+                      created_at=Created,
+                      author_id=proplists:get_value("author_id",C),
+                      public=proplists:get_value("public",C)
+                     },
+    case mnesia:dirty_read(comments, Comment_id) of
+        [] ->  erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_commented,
+                                                         {Org_name, {CY,CM}},1),
+               erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,
+                                                         {Org_name, CW},1),
+               erlZenDeskStats_funs:store_to_db(comments,Comment_record);
+        _ -> 
+            ok
+    end,
+    parse(comments,Comments,{Ticket_id,Org_name});
+parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
+    parse(comments,Comments,{Ticket_id,Org_name}).
+
+
+parse_comments(Id,Org_name) ->
+                                                % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
+                                                % -H "Content-Type: application/json" -v -u {email_address}:{password}
+
+    Url = ?ZENDESK_URL++"/tickets/"++integer_to_list(Id)++"/comments.json",
+    parse_comments(Id,Org_name,Url).
+
+parse_comments(Id,Org_name,Url) ->
+                                                %    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
+    case erlZenDeskStats_funs:read_web(Url) of
+        {success, {{_,200,"OK"},Headers, Body}} ->
+            case erlZenDeskStats_funs:check(Headers) of 
+		ok -> {struct,Results} = mochijson:decode(Body),
+                      {array, CommentList} = proplists:get_value("comments",Results),
+                      Next_page = proplists:get_value("next_page",Results), 
+                                                % pagination might be needed! - ex. XXX case, where no of comments is > 100
+                                                % ?ZENDESK_URL"/tickets/206/comments.json?page=2"
+                      parse(comments,CommentList,{Id,Org_name}),
+                      case Next_page of
+                          null -> ok;
+                          Url1 ->
+                              parse_comments(Id,Org_name,Url1)
+                      end;
+                _Error ->
+                    gen_server:cast(erlZenDeskStats_worker, {error, {headers,Url}})
+            end;
+        {success, {{_,Code,Reason},_,_}} ->
+            error_logger:info_report(["Comments not got, Code, Reason",{Code,Reason}]),
+            gen_server:cast(erlZenDeskStats_worker, {error, {http_answer,Code}});
+	{error, Reason} ->
+	    gen_server:cast(erlZenDeskStats_worker, {error, {Reason,Url}});
+        _Error -> 
+            gen_server:cast(erlZenDeskStats_worker, {error, Url})
+    end.
+
+handle_ticket("Support",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
+    handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
+handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     Created=proplists:get_value("created_at",List),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
@@ -131,73 +204,5 @@ parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,S
         {_,_,_} -> ok
     end,
     parse(tickets,Structs,{New_Tickets_no,New_Closed_no,New_Pending_no,New_Open_no,New_Solved_no});
-
-parse(tickets,[_Other|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,New_Solved_no}) ->
-    parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,New_Solved_no});
-
-parse(comments,[],_) ->
-    ok;
-parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
-    Created=proplists:get_value("created_at",C),
-    {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
-    CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
-    Comment_id=proplists:get_value("id",C),
-    Comment_record=#comments{
-                      ticket_id=Ticket_id,
-                      organization=Org_name,
-                      id=Comment_id,
-                      type=proplists:get_value("comment",C),
-                      created_at=Created,
-                      author_id=proplists:get_value("author_id",C),
-                      public=proplists:get_value("public",C)
-                     },
-    case mnesia:dirty_read(comments, Comment_id) of
-        [] ->  erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_commented,
-                                                         {Org_name, {CY,CM}},1),
-               erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_commented,
-                                                         {Org_name, CW},1),
-               erlZenDeskStats_funs:store_to_db(comments,Comment_record);
-        _ -> 
-            ok
-    end,
-    parse(comments,Comments,{Ticket_id,Org_name});
-parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
-    parse(comments,Comments,{Ticket_id,Org_name}).
-
-
-parse_comments(Id,Org_name) ->
-                                                % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
-                                                % -H "Content-Type: application/json" -v -u {email_address}:{password}
-
-    Url = ?ZENDESK_URL++"/tickets/"++integer_to_list(Id)++"/comments.json",
-    parse_comments(Id,Org_name,Url).
-
-parse_comments(Id,Org_name,Url) ->
-                                                %    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
-    case erlZenDeskStats_funs:read_web(Url) of
-        {success, {{_,200,"OK"},Headers, Body}} ->
-            case erlZenDeskStats_funs:check(Headers) of 
-		ok -> {struct,Results} = mochijson:decode(Body),
-                      {array, CommentList} = proplists:get_value("comments",Results),
-                      Next_page = proplists:get_value("next_page",Results), 
-                                                % pagination might be needed! - ex. XXX case, where no of comments is > 100
-                                                % ?ZENDESK_URL"/tickets/206/comments.json?page=2"
-                      parse(comments,CommentList,{Id,Org_name}),
-                      case Next_page of
-                          null -> ok;
-                          Url1 ->
-                              parse_comments(Id,Org_name,Url1)
-                      end;
-                _Error ->
-                    gen_server:cast(erlZenDeskStats_worker, {error, {headers,Url}})
-            end;
-        {success, {{_,Code,Reason},_,_}} ->
-            error_logger:info_report(["Comments not got, Code, Reason",{Code,Reason}]),
-            gen_server:cast(erlZenDeskStats_worker, {error, {http_answer,Code}});
-	{error, Reason} ->
-	    gen_server:cast(erlZenDeskStats_worker, {error, {Reason,Url}});
-        _Error -> 
-            gen_server:cast(erlZenDeskStats_worker, {error, Url})
-    end.
-
-
+handle_ticket(_Other,[_Struct|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
+    parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}).

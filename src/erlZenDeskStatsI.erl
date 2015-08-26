@@ -93,9 +93,11 @@ gen_gnuplot_input_files(Dir) ->
     erlZenDeskStats_funs:gen_gnuplot_input_files(weekly,Dir).
 
 gen_gnuplot_reports(Dir) ->
-    erlZenDeskStats_funs:gen_gnuplot_reports( histogram, Dir).
+    erlZenDeskStats_funs:gen_gnuplot_reports( Dir, [{type,histogram},{freq,monthly}] ).
 
-gen_gnuplot_reports(Mode, Dir) -> 
-    erlZenDeskStats_funs:gen_gnuplot_reports(Mode, Dir).
+gen_gnuplot_reports(Dir,Params) -> 
+    erlZenDeskStats_funs:gen_gnuplot_reports(Dir, Params).
+
+
 
 
