@@ -55,7 +55,7 @@ start(_StartType, _StartArgs) ->
                         [{disc_copies,[node()]}, {type, Type},{attributes,record_info(fields,stat_counter)},{record_name,stat_counter}]),
     mnesia:create_table(weekly_stat_tickets_commented,
                         [{disc_copies,[node()]}, {type, Type},{attributes,record_info(fields,stat_counter)},{record_name,stat_counter}]),
-    erlZenDeskStats_funs:clear_counters(),
+    % erlZenDeskStats_funs:clear_counters(),
 
     erlZenDeskStats_sup:start_link().
 

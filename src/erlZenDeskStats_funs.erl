@@ -39,7 +39,7 @@ check(Header) ->
     end.
 
 store_to_db(_Db, Data) ->
-    mnesia:dirty_write( Data).
+    mnesia:dirty_write(Data).
 
 tokenize_dates(undefined) ->
     undefined;

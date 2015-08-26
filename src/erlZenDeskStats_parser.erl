@@ -73,9 +73,8 @@ parse(comments,[_Other|Comments],{Ticket_id,Org_name}) ->
 
 
 parse_comments(Id,Org_name) ->
-                                                % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
-                                                % -H "Content-Type: application/json" -v -u {email_address}:{password}
-
+                   % curl https://{subdomain}.zendesk.com/api/v2/tickets/{ticket_id}/comments.json \
+                   % -H "Content-Type: application/json" -v -u {email_address}:{password}
     Url = ?ZENDESK_URL++"/tickets/"++integer_to_list(Id)++"/comments.json",
     parse_comments(Id,Org_name,Url).
 
@@ -140,8 +139,6 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
                                                                    {Org_name, W},1),
                          {Y,M,W}
                  end,
-
-
     T=#tickets{id = Id,
                created_at = Created,
                creation_year = CY,
@@ -178,13 +175,18 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
                                 _ -> false
                             end
                     end,
-    case {Status,Store_tickets} of
-        {"Deleted",_} -> ok;
-        {_,true} -> 
-            erlZenDeskStats_funs:store_to_db(tickets,T);
-        _ -> ok
+   FirstStore= case {Status,Store_tickets} of
+                   {"Deleted",_} -> false;
+                   {_,true} -> 
+                       FS=case mnesia:dirty_read(tickets,T#tickets.id) of
+                              []-> true;
+                              [_Obj]-> false;
+                              _ -> true
+                       end,
+                       erlZenDeskStats_funs:store_to_db(tickets,T),
+                       FS;
+                   _ -> ok
     end,
-
     {New_Tickets_no,New_Closed_no,New_Pending_no,
      New_Open_no,New_Solved_no} = case Status of 
                                       "Open" -> {Tickets_no+1,Closed_no,Pending_no,Open_no+1,Solved_no};
@@ -195,13 +197,12 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
                                       "Solved" -> {Tickets_no+1,Closed_no,Pending_no,Open_no,Solved_no+1};
                                       _ -> {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}
                                   end,
-
-    case {Status,T#tickets.group_name, Store_tickets} of
-        {_,_,false} -> ok;
-        {"Deleted",_,true} -> ok;
-        {_,"Riak",true} -> parse_comments(T#tickets.id, Org_name);
-        {_,"Support",true} -> parse_comments(T#tickets.id, Org_name);
-        {_,_,_} -> ok
+    case {Status,T#tickets.group_name, Store_tickets,FirstStore} of
+        {_,_,false,true} -> parse_comments(T#tickets.id, Org_name);
+        {"Deleted",_,true,_} -> ok;
+        {_,"Riak",true,_} -> parse_comments(T#tickets.id, Org_name);
+        {_,"Support",true,_} -> parse_comments(T#tickets.id, Org_name);
+        _ -> ok
     end,
     parse(tickets,Structs,{New_Tickets_no,New_Closed_no,New_Pending_no,New_Open_no,New_Solved_no});
 handle_ticket(_Other,[_Struct|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
