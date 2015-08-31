@@ -79,6 +79,9 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({get_status},_From, State) ->
     {reply, State, State};
+handle_call({reset_status},_From, State) ->
+    NewState=State#state{last_check=never},
+    {reply, NewState, NewState};
 handle_call({get_last_check},_From, State) ->
     {reply, State#state.last_check, State};
 handle_call({get_counter, Counter},_From, State) ->

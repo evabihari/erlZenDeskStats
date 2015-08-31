@@ -9,7 +9,7 @@ export OUTTXT="/tmp/out_$$.txt"
 function convert()
 {
 # function declaration
-# Parameter1 is the name of the time_reports file
+    # Parameter1 is the name of the time_reports file
     INPUT=${1:-"timereports.gnuplot"} ;
     echo $INPUT
     sed -e 's/^Subtotal [0-9]*\.\([0-9]*\)\.\([0-9]*\)-[0-9.]*[[:space:]]\([0-9.]*\)$/\2\/\1 \3/;/^Date.*$/d;/^Grand Total.*$/d' $INPUT > $OUTTXT
@@ -130,6 +130,7 @@ function gnu_script_timereport_graph()
     echo "  set x2range [\"2013/10\":*]" >> "$FILE"
     echo "  set y2label 'no of reported hours' tc lt 2" >> "$FILE"
     echo "  set y2tics 20 nomirror tc lt 2" >> "$FILE"
+    echo "  set x2tics nomirror rotate by 90 scale 0 font \",5\" " >> "$FILE"   
     echo "  replot \"$OUTTXT\" using 1:2 title \"Reported hours\" axis x2y2 with lines lc black " >> $FILE 
     echo "timereports plotted" 
 }
@@ -192,14 +193,14 @@ function create_gnuplot_script()
     gnu_script_init_part $GNUPLOT
 
     # the plots
-    if [ "$TYPE" = "histogram" ]
+    if [ $TYPE = "histogram" ]
        then
 	   gnu_script_histogram_part $FREQ $GNUPLOT $XTIC $COLUMN
     else
 	    gnu_script_graph_part $FREQ $GNUPLOT $1 $2
     fi
 
-    if [ FREQ == "monthly" ]
+    if [ $FREQ == "monthly" ]
        then
 	   # timereport graph
 	   gnu_script_timereport_graph $GNUPLOT
@@ -247,4 +248,5 @@ create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Ti
 Title=`echo $F"_commented.pdf"`
 create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title "pdf" "number of comments" "x1y1" 
 
+cp $OUTTXT "timereports.gnuplot"
 rm $OUTTXT

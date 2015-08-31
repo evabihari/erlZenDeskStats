@@ -11,7 +11,8 @@
          gen_gnuplot_input_files/0,
          gen_gnuplot_input_files/1,
          gen_gnuplot_reports/1,
-         gen_gnuplot_reports/2]).
+         gen_gnuplot_reports/2,
+         reset_status/0]).
 
 get_status() ->
     try
@@ -21,6 +22,16 @@ get_status() ->
         Error:Reason ->
             {error,{Error, Reason}}
     end.
+
+reset_status() ->
+    try
+        gen_server:call(erlZenDeskStats_worker,{reset_status}, 5)
+    catch
+        exit:{timeout,_Other} -> {erro,"Parsing in progress, please try it later"};
+        Error:Reason ->
+            {error,{Error, Reason}}
+    end.    
+
 
 get_last_check() ->
     try

@@ -11,7 +11,7 @@ init() ->
     get_tickets().
 
 get_tickets() ->
-    erlZenDeskStats_funs:clear_counters(),
+   % erlZenDeskStats_funs:clear_counters(),
     Src = ?ZENDESK_URL++"/exports/tickets.json",
     Query = "?start_time="++?START_TIME,
     Url = gen_url(Src, Query),
@@ -38,7 +38,7 @@ parse(tickets,[],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no};
 parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
     Group_name = proplists:get_value("group_name", List),
-    handle_ticket(Group_name,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
+    parse_ticket(Group_name,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
 parse(tickets,[_Other|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
     parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
 
@@ -79,7 +79,6 @@ parse_comments(Id,Org_name) ->
     parse_comments(Id,Org_name,Url).
 
 parse_comments(Id,Org_name,Url) ->
-                                                %    io:format("parse comments, Id=~p, Url=~p~n",[Id, Url]),
     case erlZenDeskStats_funs:read_web(Url) of
         {success, {{_,200,"OK"},Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 
@@ -106,9 +105,9 @@ parse_comments(Id,Org_name,Url) ->
             gen_server:cast(erlZenDeskStats_worker, {error, Url})
     end.
 
-handle_ticket("Support",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
-    handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
-handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
+parse_ticket("Support",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
+    parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
+parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     Created=proplists:get_value("created_at",List),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
@@ -117,28 +116,34 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
     Org_name = erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
     Updated_at = proplists:get_value("updated_at",List),
     Id = proplists:get_value("id",List),
-
-    case Status of
-        "Deleted" -> ok;
-        _ ->
-            erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,
-                                                      {Org_name, {CY,CM}},1),
-            erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,
-                                                      {Org_name, CW},1)
-    end,
-
-    {SY,SM,SW} = case {Solved, Status} of
-                     {null,_} -> {undefined, undefined, undefined};
-                     {_Date, "Deleted"} -> {undefined, undefined, undefined};
-                     {Date,_} ->
+    % set ticket state: [new | no_change | {updated,Old_record}]
+    Ticket_state = case mnesia:dirty_read(tickets, Id) of
+                        [] -> new;
+                        [Old_ticket_record] ->
+                            case erlZenDeskStats_funs:compare_dates(Old_ticket_record#tickets.updated_at,
+                                                                    Updated_at) of
+                                smaller -> 
+                                     {updated,Old_ticket_record};
+                                _ -> no_change
+                            end
+                    end,
+    % check solution date and update solution counters if needed
+    {SY,SM,SW} = case {Solved, Status, Ticket_state} of
+                     {null,_,_} -> {undefined, undefined, undefined};
+                     {_Date, "Deleted",_} -> {undefined, undefined, undefined};
+                     {Date,_,St} when ((St==new) orelse (St=={updated,'_'}))->
                          {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
                          W=erlZenDeskStats_funs:week_number(Y,M,D),
                          erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
                                                                    {Org_name, {Y,M}},1),
                          erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_solved,
                                                                    {Org_name, W},1),
-                         {Y,M,W}
+                         {Y,M,W};
+                      {Date,_,no_change} ->
+                         erlZenDeskStats_funs:tokenize_dates(Date)
                  end,
+
+    % create tickets record
     T=#tickets{id = Id,
                created_at = Created,
                creation_year = CY,
@@ -166,27 +171,25 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
                                                 % field_23671848 -> How was it resolved
                maximumPriority= proplists:get_value("field_24366599",List) %field_24366599 -> MaximumPriority        
               },
-    Store_tickets = case mnesia:dirty_read(tickets, Id) of
-                        [] -> true;
-                        [Old_ticket_record] ->
-                            case erlZenDeskStats_funs:compare_dates(Old_ticket_record#tickets.updated_at,
-                                                                    Updated_at) of
-                                smaller -> true;
-                                _ -> false
-                            end
-                    end,
-   FirstStore= case {Status,Store_tickets} of
-                   {"Deleted",_} -> false;
-                   {_,true} -> 
-                       FS=case mnesia:dirty_read(tickets,T#tickets.id) of
-                              []-> true;
-                              [_Obj]-> false;
-                              _ -> true
-                       end,
-                       erlZenDeskStats_funs:store_to_db(tickets,T),
-                       FS;
-                   _ -> ok
+    % update creation counters
+    case {Status,Ticket_state} of
+        {"Deleted",_} -> ok;
+        {_, new} ->
+            erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_created,
+                                                      {Org_name, {CY,CM}},1),
+            erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_created,
+                                                      {Org_name, CW},1);
+        _ -> ok
+    end,  
+    % store tickets record
+    % Ticket_state = [new | no_change | {updated,Old_record}]
+    case {Status,Ticket_state} of
+        {"Deleted",_} -> ok;
+        {_, State} when ((State==new) orelse (State=={updated,'_'})) ->
+            erlZenDeskStats_funs:store_to_db(tickets,T);
+        _ -> ok
     end,
+
     {New_Tickets_no,New_Closed_no,New_Pending_no,
      New_Open_no,New_Solved_no} = case Status of 
                                       "Open" -> {Tickets_no+1,Closed_no,Pending_no,Open_no+1,Solved_no};
@@ -197,13 +200,16 @@ handle_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Op
                                       "Solved" -> {Tickets_no+1,Closed_no,Pending_no,Open_no,Solved_no+1};
                                       _ -> {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}
                                   end,
-    case {Status,T#tickets.group_name, Store_tickets,FirstStore} of
-        {_,_,false,true} -> parse_comments(T#tickets.id, Org_name);
-        {"Deleted",_,true,_} -> ok;
-        {_,"Riak",true,_} -> parse_comments(T#tickets.id, Org_name);
-        {_,"Support",true,_} -> parse_comments(T#tickets.id, Org_name);
+    % parse comments
+    case {Status,T#tickets.group_name,Ticket_state} of
+        {"Deleted",_,_} -> ok;
+        {_,_,old} -> ok;
+        {_,Group,new} when ((Group=="Riak") orelse (Group=="Support"))
+                           -> parse_comments(T#tickets.id, Org_name);
+        {_,Group,{update,_}} when ((Group=="Riak") orelse (Group=="Support"))
+                           -> parse_comments(T#tickets.id, Org_name);
         _ -> ok
     end,
     parse(tickets,Structs,{New_Tickets_no,New_Closed_no,New_Pending_no,New_Open_no,New_Solved_no});
-handle_ticket(_Other,[_Struct|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
+parse_ticket(_Other,[_Struct|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
     parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}).

@@ -374,6 +374,7 @@ generate_gnuplot_reports(Script, Dir, Args) ->
         {error, Reason} ->
             {error, Reason};
         never ->
+             erlZenDeskStatsI:start_new_round(),
             {error, "ZenDesk was not parsed yet"};
         Value ->
             case check_difference(Value) of
@@ -383,7 +384,7 @@ generate_gnuplot_reports(Script, Dir, Args) ->
                         {parsing_ready} -> 
                             io:format("parsing ready, try again ~n",[]),
                             generate_gnuplot_reports(Script, Dir,{Type,Freq})
-                       after 1000 ->
+                       after 10000 ->
                             io:format("parsing still not finalized, try again later ~n",[]),
                                ok
                        end;
