@@ -1,0 +1,9 @@
+# white list expressions
+
+# regex%limit
+# limit can be either a positive integer or + to indicate no count check.
+
+## Function warnings
+^glc.*Invalid type specification for function glc:lt/2%1
+^glc_code.erl*The created fun has no local return%1
+^glc_code.erl*The call glc_code:abstract_with%1

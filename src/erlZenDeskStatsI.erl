@@ -14,20 +14,22 @@
          gen_gnuplot_reports/2,
          reset_status/0]).
 
+-spec get_status() -> ok | {error, term()}.
 get_status() ->
     try
         gen_server:call(erlZenDeskStats_worker,{get_status}, 5)
     catch
-        exit:{timeout,_Other} -> {erro,"Parsing in progress, please try it later"};
+        exit:{timeout,_Other} -> {error,"Parsing in progress, please try it later"};
         Error:Reason ->
             {error,{Error, Reason}}
     end.
 
+-spec reset_status() -> ok | {error, term()}.
 reset_status() ->
     try
         gen_server:call(erlZenDeskStats_worker,{reset_status}, 5)
     catch
-        exit:{timeout,_Other} -> {erro,"Parsing in progress, please try it later"};
+        exit:{timeout,_Other} -> {error,"Parsing in progress, please try it later"};
         Error:Reason ->
             {error,{Error, Reason}}
     end.    

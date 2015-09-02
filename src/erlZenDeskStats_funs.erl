@@ -21,6 +21,9 @@ read_web(Url) ->
         {error, socket_closed_remotely} -> 
             error_logger:error_report(["socket_closed_remotely",{url,Url}]),
             {{error,socket_closed_remotely},error};
+        {error, {could_not_parse_as_http, Reason}} ->
+            error_logger:error_report(["could_not_parse_as_http",{reason, Reason}]),
+            {error, {could_not_parse_as_http, Reason}};
         Error  ->
             io:format("read_web(~p) Error=~p~n",[Url,Error]),
             {error,Error}
@@ -383,7 +386,7 @@ generate_gnuplot_reports(Script, Dir, Args) ->
                     receive
                         {parsing_ready} -> 
                             io:format("parsing ready, try again ~n",[]),
-                            generate_gnuplot_reports(Script, Dir,{Type,Freq})
+                            generate_gnuplot_reports(Script, Dir,[Type,Freq])
                        after 10000 ->
                             io:format("parsing still not finalized, try again later ~n",[]),
                                ok

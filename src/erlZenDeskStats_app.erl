@@ -28,7 +28,7 @@ start(_StartType, _StartArgs) ->
         {aborted,{already_exists,tickets}} -> 
             error_logger:info_msg("tickets table already_exists");
         Other ->
-            error_logger:error_msg(["tickets table creation failed ",{reason,Other}])
+            error_logger:error_msg("tickets table creation failed , reason = ~p~n",[Other])
     end,
     case mnesia:create_table(comments, 
                              [{disc_copies,[node()]},
@@ -39,7 +39,7 @@ start(_StartType, _StartArgs) ->
         {aborted,{already_exists,comments}} -> 
             error_logger:info_msg("comments table already_exists");
         Error ->
-            error_logger:error_msg(["comments table creation failed ",{error,Error}])
+            error_logger:error_msg("comments table creation failed, error =~p~n ",[Error])
     end,
     error_logger:info_msg("mnesia table tickets created"),
     Type = ordered_set,

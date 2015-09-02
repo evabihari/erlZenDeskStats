@@ -131,7 +131,8 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
     {SY,SM,SW} = case {Solved, Status, Ticket_state} of
                      {null,_,_} -> {undefined, undefined, undefined};
                      {_Date, "Deleted",_} -> {undefined, undefined, undefined};
-                     {Date,_,St} when ((St==new) orelse (St=={updated,'_'}))->
+                     {Date,_,St} when ((St==new) orelse 
+                                       (is_tuple(St) andalso (element(1,St)==updated)))->
                          {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
                          W=erlZenDeskStats_funs:week_number(Y,M,D),
                          erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
@@ -142,7 +143,13 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                       {Date,_,no_change} ->
                          erlZenDeskStats_funs:tokenize_dates(Date)
                  end,
-
+    Priority = proplists:get_value("priority",List),
+    %handle MaximumPriority field  => field_24366599 -> MaximumPriority
+    MaxPrio = case proplists:get_value("field_24366599",List) of 
+                  null -> Priority;
+                  Value -> Value
+              end,
+ 
     % create tickets record
     T=#tickets{id = Id,
                created_at = Created,
@@ -156,7 +163,7 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                solved_week = SW,
                organization_name = 
                    erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
-               priority = proplists:get_value("priority",List), 
+               priority = Priority, 
                reopens = proplists:get_value("reopens",List), 
                replies= proplists:get_value("replies",List), 
                req_name= lists:subtract(proplists:get_value("req_name",List), ","), 
@@ -169,7 +176,7 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                complexity= proplists:get_value("field_23666277",List), %field_23666277 -> Complexity
                how_was_resolved= proplists:get_value("field_23671848",List), 
                                                 % field_23671848 -> How was it resolved
-               maximumPriority= proplists:get_value("field_24366599",List) %field_24366599 -> MaximumPriority        
+               maximumPriority= MaxPrio        
               },
     % update creation counters
     case {Status,Ticket_state} of
@@ -185,7 +192,8 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
     % Ticket_state = [new | no_change | {updated,Old_record}]
     case {Status,Ticket_state} of
         {"Deleted",_} -> ok;
-        {_, State} when ((State==new) orelse (State=={updated,'_'})) ->
+        {_, State} when ((State==new) orelse 
+                         (is_tuple(State) andalso (element(1,State)==updated))) ->
             erlZenDeskStats_funs:store_to_db(tickets,T);
         _ -> ok
     end,
@@ -203,10 +211,10 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
     % parse comments
     case {Status,T#tickets.group_name,Ticket_state} of
         {"Deleted",_,_} -> ok;
-        {_,_,old} -> ok;
+        {_,_,no_change} -> ok;
         {_,Group,new} when ((Group=="Riak") orelse (Group=="Support"))
                            -> parse_comments(T#tickets.id, Org_name);
-        {_,Group,{update,_}} when ((Group=="Riak") orelse (Group=="Support"))
+        {_,Group,{updated,_}} when ((Group=="Riak") orelse (Group=="Support"))
                            -> parse_comments(T#tickets.id, Org_name);
         _ -> ok
     end,
