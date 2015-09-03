@@ -19,14 +19,6 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {last_check=never,
-                parsing_in_progress=false,
-                no_of_tickets = 0,
-                no_of_closed_tickets = 0,
-                no_of_pending_tickets = 0,
-                no_of_solved_tickets = 0,
-                no_of_open_tickets=0}).
-
 -include("records.hrl").
 
 %%%===================================================================
@@ -99,15 +91,20 @@ handle_call({get_counter, Counter},_From, State) ->
     {reply,{Counter, Answer},State};
 
 handle_call({store_table_to_csv,Table,FileName}, _From, State) ->
-    {ok, IoDevice} = file:open(FileName,[write]),
-    Reply = case erlZenDeskStats_funs:dump_table(IoDevice, Table) of
-                IoDevice ->
-                    ok;
-                Other ->
-                    {error,Other}
-            end,
-    file:close(IoDevice),
-    {reply, Reply, State};
+    R = case file:open(FileName,[write]) of
+            {ok, IoDevice} ->
+                Reply = case erlZenDeskStats_funs:dump_table(IoDevice, Table) of
+                        IoDevice ->
+                            ok;
+                        Other ->
+                            Other
+                    end,
+                file:close(IoDevice),
+                Reply;
+            {error, Reason} ->
+                {error, Reason}
+    end,
+    {reply, R, State};
 
 
 handle_call(_Request, _From, State) ->

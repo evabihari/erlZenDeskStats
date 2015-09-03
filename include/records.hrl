@@ -38,12 +38,20 @@
                  organization,
                  year,
                  month_or_week,
-                 year_and_period, % {year, month_or_week}
+                 year_and_period, % {year / month_or_week}
                  tickets_created=0,
                  tickets_solved=0,
                  tickets_commented=0}).
 
 - record(stat_counter, {key, counter}).
+
+- record(state, {last_check=never,
+                parsing_in_progress=false,
+                no_of_tickets = 0,
+                no_of_closed_tickets = 0,
+                no_of_pending_tickets = 0,
+                no_of_solved_tickets = 0,
+                no_of_open_tickets=0}).
 
  - ifdef(debug1).
 - define( Log(Msg,Parameters), error_logger:info_report([Msg,Parameters])).
@@ -57,8 +65,10 @@
  - define(L(Msg,Parameters), ok).
 - endif.
 
+-define(FREQ,[monthly,weekly]).
+-define(TYPE,[histogram,graph]).
 -define(START_TIME, "1383734680").
--define(USER, "Your_user_name").
--define(PWD, "Your password").
--define(ZENDESK_URL, "https://YOUR_ORG.zendesk.com/api/v2").
+-define(USER, "USERNAME").
+-define(PWD, "PWD").
+-define(ZENDESK_URL, "URL").
 

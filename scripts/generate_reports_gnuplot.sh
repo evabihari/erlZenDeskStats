@@ -240,12 +240,12 @@ done
 
 convert "journyx_report.txt"
 
-Title=`echo $F"_created.pdf"`
+Title=`echo $F"_"$TYPE"_created.pdf"`
 echo $Title
 create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title "pdf"
-Title=`echo $F"_solved.pdf"`
+Title=`echo $F"_"$TYPE"_solved.pdf"`
 create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title "pdf"
-Title=`echo $F"_commented.pdf"`
+Title=`echo $F"_"$TYPE"_commented.pdf"`
 create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title "pdf" "number of comments" "x1y1" 
 
 cp $OUTTXT "timereports.gnuplot"

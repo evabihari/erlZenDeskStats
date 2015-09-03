@@ -81,21 +81,28 @@ compare(_,_,Result) ->
     Result.
 
 dump_table(IoDevice, Table_name) ->
-    mnesia:dirty_first(Table_name),
-    write_header_line(IoDevice, Table_name),
-    Dump_to_file = fun(Rec,IO) ->
+    try
+        mnesia:dirty_first(Table_name),
+        write_header_line(IoDevice, Table_name),
+        Dump_to_file = fun(Rec,IO) ->
                            pretty_print(Rec,IO),
                            io:format(IO, " ~n",[]),
                            IO
                    end,
-    case mnesia:is_transaction() of
-        true -> mnesia:foldl(Dump_to_file,IoDevice,Table_name);
-        false -> 
-            Exec = fun({Fun,Tab}) -> mnesia:foldl(Fun, IoDevice,Tab) end,
-            mnesia:activity(transaction,Exec,[{Dump_to_file,Table_name}],mnesia_frag)
-    end,
-    % io:format("~p table was dumped to ~p~n",[Table_name, IoDevice]),
-    IoDevice.
+        case mnesia:is_transaction() of
+            true -> mnesia:foldl(Dump_to_file,IoDevice,Table_name);
+            false -> 
+                Exec = fun({Fun,Tab}) -> mnesia:foldl(Fun, IoDevice,Tab) end,
+                mnesia:activity(transaction,Exec,[{Dump_to_file,Table_name}],mnesia_frag)
+        end,
+        IoDevice
+    catch
+        exit:{aborted,Reason} ->
+            {error, {aborted, Reason}};
+        Error:Reason ->
+            {Error,Reason}
+    end.
+        
 
 write_header_line(IoDevice, Table_name) ->
     write_field_names(IoDevice,mnesia:table_info(Table_name, attributes)),
@@ -348,11 +355,15 @@ create_org_files([Org|Orgs],Type,Dir) ->
                    [] -> Dir++"/Non_org_"++Type++".csv";
                    OName -> Dir++"/"++OName++"_"++Type++".csv"
                end,
-    {ok, IoDevice} = file:open(FileName,[write]),
-    write_header_line(IoDevice, monthly_stats),
-    store_objects(ObjList, IoDevice),
-    file:close(IoDevice),
-    create_org_files(Orgs, Type,Dir).
+    case file:open(FileName,[write]) of
+        {ok, IoDevice} ->
+            write_header_line(IoDevice, monthly_stats),
+            store_objects(ObjList, IoDevice),
+            file:close(IoDevice),
+            create_org_files(Orgs, Type,Dir);
+        {error,Reason} ->
+            {error,Reason}
+     end.
 
 store_objects([],_IoDevicem_Type) ->
     ok;
@@ -372,7 +383,15 @@ gen_gnuplot_reports(Dir, Params) ->
     generate_gnuplot_reports("generate_reports_gnuplot.sh",Dir,Params).
 
 generate_gnuplot_reports(Script, Dir, Args) ->
-    {Type,Freq} = {get_param(type, histogram, Args),get_param(freq,monthly, Args)},
+    {T1,F1} = {get_param(type, histogram, Args),get_param(freq,monthly, Args)},
+    Type = case check_parameter(type,T1) of
+               true -> T1;
+               _ -> histogram
+           end,
+    Freq=case check_parameter(freq,F1) of
+           true -> F1;
+             _ -> monthly
+           end,
     case erlZenDeskStatsI:get_last_check() of
         {error, Reason} ->
             {error, Reason};
@@ -395,15 +414,19 @@ generate_gnuplot_reports(Script, Dir, Args) ->
                     ok=erlZenDeskStatsI:merge_stats_tables(),
                     io:format("Dir=~p~n",[Dir]),
                     ok=erlZenDeskStatsI:dump_all_tables(Dir),
-                    ok=erlZenDeskStats_funs:gen_gnuplot_input_files(monthly,Dir),
-                    {ok,Current_dir}=file:get_cwd(),
-                    ok=file:set_cwd(Dir),
-                    Cmd="cp ../scripts/"++Script++" .",
-                    os:cmd(Cmd),
-                    Cmd2="./"++Script++" "++atom_to_list(Type)++" "++atom_to_list(Freq),
-                    os:cmd(Cmd2),
-                    ok=file:set_cwd(Current_dir),
-                    ok
+                    case gen_gnuplot_input_files(Freq, Dir) of
+                        ok ->
+                            {ok,Current_dir}=file:get_cwd(),
+                            ok=file:set_cwd(Dir),
+                            Cmd="cp ../scripts/"++Script++" .",
+                            os:cmd(Cmd),
+                            Cmd2="./"++Script++" "++atom_to_list(Type)++" "++atom_to_list(Freq),
+                            os:cmd(Cmd2),
+                            ok=file:set_cwd(Current_dir),
+                            ok;
+                        Other ->
+                            Other
+                    end
             end
     end.
 
@@ -494,3 +517,11 @@ get_value(Binary,List) ->
             binary_to_list(Value);
         Other -> Other
     end.
+
+check_parameter(freq,Value) ->
+    lists:member(Value,?FREQ);
+check_parameter(type,Value) ->
+    lists:member(Value,?TYPE);
+check_parameter(_,_) ->
+    false.
+
