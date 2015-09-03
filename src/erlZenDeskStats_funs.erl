@@ -485,3 +485,12 @@ get_param(Key,Default,List) when is_atom(Key) ->
     end;
 get_param(Key,Default,List) ->
     get_param(list_to_atom(Key),Default,List).
+
+get_value(String, List) when is_list(String) ->
+    get_value(list_to_binary(String),List);
+get_value(Binary,List) ->
+    case proplists:get_value(Binary,List) of
+        Value when is_binary(Value) ->
+            binary_to_list(Value);
+        Other -> Other
+    end.

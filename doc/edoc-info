@@ -1,0 +1,5 @@
+%% encoding: UTF-8
+{application,erlZenDeskStats}.
+{modules,[erlZenDeskStatsI,erlZenDeskStats_app,erlZenDeskStats_funs,
+          erlZenDeskStats_parser,erlZenDeskStats_sup,erlZenDeskStats_worker,
+          mochijson,mochinum,mochiutf8,mochiweb_charref,mochiweb_html]}.

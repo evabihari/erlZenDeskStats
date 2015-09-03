@@ -19,8 +19,8 @@ get_tickets() ->
         {success, {_Status_line,Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 
 		ok ->
-                    {struct,Results} = mochijson:decode(Body),
-                    {array, TicketList} = proplists:get_value("results",Results),
+                    {struct,Results} = mochijson2:decode(Body),
+                    TicketList = erlZenDeskStats_funs:get_value("results",Results),
                     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}=parse(tickets,TicketList,{0,0,0,0,0}),
                     gen_server:cast(erlZenDeskStats_worker, 
                                     {zendesk_parsed, {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}});
@@ -37,7 +37,7 @@ gen_url(Src, Query) ->
 parse(tickets,[],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no};
 parse(tickets,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
-    Group_name = proplists:get_value("group_name", List),
+    Group_name = erlZenDeskStats_funs:get_value("group_name", List),
     parse_ticket(Group_name,[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
 parse(tickets,[_Other|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no}) ->
     parse(tickets,Structs,{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
@@ -45,18 +45,18 @@ parse(tickets,[_Other|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_n
 parse(comments,[],_) ->
     ok;
 parse(comments,[{struct,C}|Comments],{Ticket_id,Org_name}) ->
-    Created=proplists:get_value("created_at",C),
+    Created=erlZenDeskStats_funs:get_value("created_at",C),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
-    Comment_id=proplists:get_value("id",C),
+    Comment_id=erlZenDeskStats_funs:get_value("id",C),
     Comment_record=#comments{
                       ticket_id=Ticket_id,
                       organization=Org_name,
                       id=Comment_id,
-                      type=proplists:get_value("comment",C),
+                      type=erlZenDeskStats_funs:get_value("comment",C),
                       created_at=Created,
-                      author_id=proplists:get_value("author_id",C),
-                      public=proplists:get_value("public",C)
+                      author_id=erlZenDeskStats_funs:get_value("author_id",C),
+                      public=erlZenDeskStats_funs:get_value("public",C)
                      },
     case mnesia:dirty_read(comments, Comment_id) of
         [] ->  erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_commented,
@@ -82,11 +82,11 @@ parse_comments(Id,Org_name,Url) ->
     case erlZenDeskStats_funs:read_web(Url) of
         {success, {{_,200,"OK"},Headers, Body}} ->
             case erlZenDeskStats_funs:check(Headers) of 
-		ok -> {struct,Results} = mochijson:decode(Body),
-                      {array, CommentList} = proplists:get_value("comments",Results),
-                      Next_page = proplists:get_value("next_page",Results), 
-                                                % pagination might be needed! - ex. XXX case, where no of comments is > 100
-                                                % ?ZENDESK_URL"/tickets/206/comments.json?page=2"
+		ok -> {struct,Results} = mochijson2:decode(Body),
+                      CommentList = erlZenDeskStats_funs:get_value("comments",Results),
+                      Next_page = erlZenDeskStats_funs:get_value("next_page",Results), 
+                                      % pagination might be needed! - ex. XXX case, where no of comments is > 100
+                                      % ?ZENDESK_URL"/tickets/206/comments.json?page=2"
                       parse(comments,CommentList,{Id,Org_name}),
                       case Next_page of
                           null -> ok;
@@ -105,17 +105,18 @@ parse_comments(Id,Org_name,Url) ->
             gen_server:cast(erlZenDeskStats_worker, {error, Url})
     end.
 
-parse_ticket("Support",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
+parse_ticket("Support",[{struct,List}|Structs],
+             {Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
     parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no});
 parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Open_no,Solved_no})->
-    Created=proplists:get_value("created_at",List),
+    Created=erlZenDeskStats_funs:get_value("created_at",List),
     {CY,CM,CD}=erlZenDeskStats_funs:tokenize_dates(Created),
     CW=erlZenDeskStats_funs:week_number(CY,CM,CD),
-    Solved=proplists:get_value("solved_at",List),
-    Status = proplists:get_value("status",List),
-    Org_name = erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
-    Updated_at = proplists:get_value("updated_at",List),
-    Id = proplists:get_value("id",List),
+    Solved=erlZenDeskStats_funs:get_value("solved_at",List),
+    Status = erlZenDeskStats_funs:get_value("status",List),
+    Org_name = erlZenDeskStats_funs:remove_space(erlZenDeskStats_funs:get_value("organization_name",List)),
+    Updated_at = erlZenDeskStats_funs:get_value("updated_at",List),
+    Id = erlZenDeskStats_funs:get_value("id",List),
     % set ticket state: [new | no_change | {updated,Old_record}]
     Ticket_state = case mnesia:dirty_read(tickets, Id) of
                         [] -> new;
@@ -143,10 +144,10 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                       {Date,_,no_change} ->
                          erlZenDeskStats_funs:tokenize_dates(Date)
                  end,
-    Priority = proplists:get_value("priority",List),
+    Priority = erlZenDeskStats_funs:get_value("priority",List),
     %handle MaximumPriority field  => field_24366599 -> MaximumPriority
-    MaxPrio = case proplists:get_value("field_24366599",List) of 
-                  null -> Priority;
+    MaxPrio = case erlZenDeskStats_funs:get_value("field_24366599",List) of 
+                  none -> Priority;
                   Value -> Value
               end,
  
@@ -162,19 +163,22 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                solved_month = SM,
                solved_week = SW,
                organization_name = 
-                   erlZenDeskStats_funs:remove_space(proplists:get_value("organization_name",List)),
+                   erlZenDeskStats_funs:remove_space
+                     (erlZenDeskStats_funs:get_value("organization_name",List)),
                priority = Priority, 
-               reopens = proplists:get_value("reopens",List), 
-               replies= proplists:get_value("replies",List), 
-               req_name= lists:subtract(proplists:get_value("req_name",List), ","), 
+               reopens = erlZenDeskStats_funs:get_value("reopens",List), 
+               replies= erlZenDeskStats_funs:get_value("replies",List), 
+               req_name= lists:subtract(erlZenDeskStats_funs:get_value("req_name",List), ","), 
                status= Status, 
-               group_name= proplists:get_value("group_name",List),
-               ticket_type= proplists:get_value("ticket_type",List), 
-               via= proplists:get_value("via",List),
-               product_and_version= proplists:get_value("field_23659343",List), %field_23659343
-               root_cause= proplists:get_value("field_23659393",List), %field_23659393 -> Root couse
-               complexity= proplists:get_value("field_23666277",List), %field_23666277 -> Complexity
-               how_was_resolved= proplists:get_value("field_23671848",List), 
+               group_name= erlZenDeskStats_funs:get_value("group_name",List),
+               ticket_type= erlZenDeskStats_funs:get_value("ticket_type",List), 
+               via= erlZenDeskStats_funs:get_value("via",List),
+               product_and_version= erlZenDeskStats_funs:get_value("field_23659343",List), %field_23659343
+               root_cause= erlZenDeskStats_funs:get_value("field_23659393",List), 
+                                                %field_23659393 -> Root couse
+               complexity= erlZenDeskStats_funs:get_value("field_23666277",List), 
+                                                %field_23666277 -> Complexity
+               how_was_resolved= erlZenDeskStats_funs:get_value("field_23671848",List), 
                                                 % field_23671848 -> How was it resolved
                maximumPriority= MaxPrio        
               },
@@ -214,7 +218,7 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
         {_,_,no_change} -> ok;
         {_,Group,new} when ((Group=="Riak") orelse (Group=="Support"))
                            -> parse_comments(T#tickets.id, Org_name);
-        {_,Group,{updated,_}} when ((Group=="Riak") orelse (Group=="Support"))
+        {_,Group,{updated,_}} when ((Group==<<"Riak">>) orelse (Group=="Support"))
                            -> parse_comments(T#tickets.id, Org_name);
         _ -> ok
     end,

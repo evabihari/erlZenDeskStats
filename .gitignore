@@ -28,3 +28,4 @@ log_report
 .dialyzer-output
 Mnesia.nonode@nohost
 include/records.hrl.my	
+tests/*
