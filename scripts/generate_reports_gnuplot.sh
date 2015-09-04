@@ -2,7 +2,8 @@
 # parameters to the script:
 # Parameter1: report type: graph/histogram (default is histogram)
 # Parameter2: frequency; default is: monthly
-# Parameter3: generated gnuplot script name; default is: result.p
+# Parameter3: OS type; default is: osx
+# Parameter4: generated gnuplot script name; default is: result.p
 
 export OUTTXT="/tmp/out_$$.txt"
 
@@ -220,9 +221,11 @@ function create_gnuplot_script()
 }
 # script execution
 TYPE=${1:-histogram}
-F=${2:-monthly} ;
-OUTPUT=${3:-"result.p"} ;
-PDF_FILE=${4:-"result.pdf"} ;
+F=${2:-monthly} 
+# valid values: osx, win32, vxworks, linux, other
+OS_TYPE=${3:-osx}
+OUTPUT=${4:-"result.p"} ;
+PDF_FILE=${5:-"result.pdf"} ;
 # F="weekly" ;  
 # F="monthly" ;   
 FORMAT="x11"
@@ -240,13 +243,41 @@ done
 
 convert "journyx_report.txt"
 
-Title=`echo $F"_"$TYPE"_created.pdf"`
-echo $Title
-create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title "pdf"
-Title=`echo $F"_"$TYPE"_solved.pdf"`
-create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title "pdf"
-Title=`echo $F"_"$TYPE"_commented.pdf"`
-create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title "pdf" "number of comments" "x1y1" 
+
+Title=`echo $F"_"$TYPE.pdf`
+Title1=`echo $F"_"$TYPE"_created.pdf"`
+echo $Title1
+create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title1 "pdf"
+Title2=`echo $F"_"$TYPE"_solved.pdf"`
+create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title2 "pdf"
+Title3=`echo $F"_"$TYPE"_commented.pdf"`
+create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title3 "pdf" "number of comments" "x1y1" 
+
+## valid $OS_TYPE values: osx, win32, vxworks, linux, other
+echo "OS_TYPE = "$OS_TYPE
+if [ $OS_TYPE == "osx" ]
+then
+    echo "OS X Title="$Title
+    /usr/texbin/pdfjoin $Title1 $Title2 $Title3 --outfile $Title
+    rm $Title1
+    rm $Title2
+    rm $Title3
+elif [ $OS_TYPE == "linux" ]
+     then
+	 if ! which pdftk > /dev/null; then
+	     echo -e "pdfk not found! Install? (y/n) \c"
+	     read
+	     if "$REPLY" = "y"; then
+		 sudo apt-get install pdftk
+	     fi
+	 fi
+	 pdftk $Title1 $Title2 $Title3 cat output $Title
+	 rm $Title1
+	 rm $Title2
+	 rm $Title3
+else
+    echo "OS_TYPE = "$OS_TYPE
+fi
 
 cp $OUTTXT "timereports.gnuplot"
 rm $OUTTXT

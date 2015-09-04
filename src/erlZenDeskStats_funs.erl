@@ -420,7 +420,14 @@ generate_gnuplot_reports(Script, Dir, Args) ->
                             ok=file:set_cwd(Dir),
                             Cmd="cp ../scripts/"++Script++" .",
                             os:cmd(Cmd),
-                            Cmd2="./"++Script++" "++atom_to_list(Type)++" "++atom_to_list(Freq),
+                            OS_Type = case os:type() of
+                                          {unix, darwin} -> osx;
+                                          {unix, Flavor} -> Flavor;
+                                          {win32, _} -> win32;
+                                          {vxworks,_} -> vxworks;
+                                          _ -> other
+                            end,
+                            Cmd2="./"++Script++" "++atom_to_list(Type)++" "++atom_to_list(Freq)++" "++atom_to_list(OS_Type),
                             os:cmd(Cmd2),
                             ok=file:set_cwd(Current_dir),
                             ok;
