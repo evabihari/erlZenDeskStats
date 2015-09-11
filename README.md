@@ -65,7 +65,7 @@ Default values:
 - script = generate_reports_gnuplot.sh
 
 generate the gnu scripts and create reports in pdf to the directory
-teh user provided as parameter.
+the user provided as parameter.
 
 For time reporting graphs (only for monthly period) journyx_report.txt
 needs to be placed in the same directory - this will be used as input

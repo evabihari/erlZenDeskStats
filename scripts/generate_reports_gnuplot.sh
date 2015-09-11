@@ -23,6 +23,8 @@ function gnu_script_init_part()
    FILE=$1
    echo "# gnuplot script for '$FILE'" > "$FILE"
    echo "set terminal postscript" >> "$FILE"
+   echo "  set title \"$2\" " >> "$FILE"
+   echo " set key below" >> "$FILE"
    echo "set key left invert" >> "$FILE"
    echo "set grid y" >> "$FILE"
    echo "  set yrange [0 :*]" >> "$FILE"
@@ -30,7 +32,6 @@ function gnu_script_init_part()
    echo "  set ytics nomirror" >> "$FILE"
    echo "  set xtics nomirror rotate by -45 scale 0 font \",10\" " >> "$FILE"
    echo "  set key noinvert box" >> "$FILE"
-   echo "  set title \"$2\" " >> "$FILE"
    echo "  rgb(r,g,b)=int(255*r)*65536+int(255*g)*256+int(255*b)" >>  "$FILE"
    echo "  do for [i=1:31] { " >> "$FILE"
    echo "      myrand=rand(int(rand(0)*i*100)+i*100) " >> "$FILE"
@@ -46,6 +47,8 @@ function gnu_script_histogram_part()
     # Parameter4: column
     Type=$1
     FILE=$2
+    XTIC=$3
+
     echo "  set style data histograms" >> "$FILE"
     echo "  set style histogram rowstacked" >> "$FILE"
     echo "  set style fill solid border -1" >> "$FILE"
@@ -66,9 +69,9 @@ function gnu_script_histogram_part()
 	    else
 		if [ $i == 1 ]
 		then
-		    echo "plot \"$filename\" using $4:xtic($3) title \"$legend\" noenhanced ls 1 " >> $FILE
+		    echo "plot \"$filename\" using $4:xtic($XTIC) title \"$legend\" noenhanced ls 1 " >> $FILE
 		else	   
- 		    echo "replot \"$filename\" using $4:xtic($3) title \"$legend\" noenhanced ls $i " >> $FILE
+ 		    echo "replot \"$filename\" using $4:xtic($XTIC) title \"$legend\" noenhanced ls $i " >> $FILE
 		fi
 	    fi
 	    echo >> "$FILE"
@@ -82,7 +85,6 @@ function gnu_script_graph_part()
     # Parameter3: XValue
     # Paramater4: YValue
     Type=$1
-    echo $Type
     FILE=$2
     AXIS="x1y1"
     if [ $Type == monthly ]
@@ -138,11 +140,11 @@ function gnu_script_timereport_graph()
 
 function create_output()
 {
-    # Parameter1: filename
-    # Parameter2: FORMAT
-    FILE=$1
-    FORMAT=$2
-    echo " FORMAT=$FORMAT ."
+    # Parameter2: filename
+    # Parameter1: FORMAT
+    FILE=$2
+    FORMAT=$1
+    TERM=" "
     if [ "$FORMAT" = "pdf" ]
     then
 	TERM="set terminal postscript  eps enhanced color solid lw 2 font 'Helvetica,12'"
@@ -191,14 +193,14 @@ function create_gnuplot_script()
     # build output/format statement
 
     # init
-    gnu_script_init_part $GNUPLOT
-
+    gnu_script_init_part $GNUPLOT "$TITLE"
+    
     # the plots
     if [ $TYPE = "histogram" ]
-       then
+    then
 	   gnu_script_histogram_part $FREQ $GNUPLOT $XTIC $COLUMN
     else
-	    gnu_script_graph_part $FREQ $GNUPLOT $1 $2
+	   gnu_script_graph_part $FREQ $GNUPLOT $XTIC $COLUMN
     fi
 
     if [ $FREQ == "monthly" ]
@@ -208,7 +210,7 @@ function create_gnuplot_script()
        fi
 
     # gnuplot output handling part
-    create_output $GNUPLOT $FORMAT
+    create_output $FORMAT $GNUPLOT
 
    # echo "call gnuplot"
     echo "PDF File= $PDF_FILE"
@@ -233,6 +235,8 @@ WIDTH="800"
 HEIGHT="600"
 GNUPLOT=""
 
+echo "F="$F
+
 ls -1 *_${F}.csv | \
 while read i ; do 
   A=`basename "$i" .csv`.gnuplot
@@ -247,11 +251,14 @@ convert "journyx_report.txt"
 Title=`echo $F"_"$TYPE.pdf`
 Title1=`echo $F"_"$TYPE"_created.pdf"`
 echo $Title1
-create_gnuplot_script 5 6 $F "Statistics for all Riak tickets sent towards ESL" $Title1 "pdf"
+T=`echo "Statistics for all Riak tickets sent towards ESL"`
+create_gnuplot_script 5 6 $F "$T" "$Title1" "pdf"
 Title2=`echo $F"_"$TYPE"_solved.pdf"`
-create_gnuplot_script 5 7 $F "Statistics for all Riak tickets solved by ESL" $Title2 "pdf"
+T=`echo "Statistics for all Riak tickets solved by ESL"`
+create_gnuplot_script 5 7 $F "$T" "$Title2" "pdf"
 Title3=`echo $F"_"$TYPE"_commented.pdf"`
-create_gnuplot_script 5 8 $F "Statistics for all Riak tickets commented by ESL and the customer" $Title3 "pdf" "number of comments" "x1y1" 
+T=`echo "Statistics for all Riak tickets commented by ESL and the customer"`
+create_gnuplot_script 5 8 $F "$T" "$Title3" "pdf" "number of comments" "x1y1" 
 
 ## valid $OS_TYPE values: osx, win32, vxworks, linux, other
 echo "OS_TYPE = "$OS_TYPE

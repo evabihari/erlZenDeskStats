@@ -404,9 +404,9 @@ generate_gnuplot_reports(Script, Dir, Args) ->
                     erlZenDeskStatsI:start_new_round(),
                     receive
                         {parsing_ready} -> 
-                            io:format("parsing ready, try again ~n",[]),
+                            io:format("parsing ready ~n",[]),
                             generate_gnuplot_reports(Script, Dir,[Type,Freq])
-                       after 10000 ->
+                       after 100000 ->
                             io:format("parsing still not finalized, try again later ~n",[]),
                                ok
                        end;
