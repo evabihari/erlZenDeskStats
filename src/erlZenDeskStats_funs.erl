@@ -397,7 +397,7 @@ generate_gnuplot_reports(Script, Dir, Args) ->
             {error, Reason};
         never ->
              erlZenDeskStatsI:start_new_round(),
-            {error, "ZenDesk was not parsed yet"};
+            {error, "ZenDesk was not parsed yet, but parsing started now, please try  it later after teh parsing is finished"};
         Value ->
             case check_difference(Value) of
                 not_ok ->

@@ -134,13 +134,23 @@ parse_ticket("Riak",[{struct,List}|Structs],{Tickets_no,Closed_no,Pending_no,Ope
                      {_Date, "Deleted",_} -> {undefined, undefined, undefined};
                      {Date,_,St} when ((St==new) orelse 
                                        (is_tuple(St) andalso (element(1,St)==updated)))->
+                         % increase solved counter only if the state became solved after the last update
+                         Old_state=case St of
+                                       new -> new;
+                                       {updated, Old_rec} ->
+                                           Old_rec#tickets.status
+                         end,
                          {Y,M,D}=erlZenDeskStats_funs:tokenize_dates(Date),
-                         W=erlZenDeskStats_funs:week_number(Y,M,D),
-                         erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
+                          W=erlZenDeskStats_funs:week_number(Y,M,D),
+                         case Old_state of 
+                             "Solved" -> {Y,M,W};
+                             _ ->            
+                                 erlZenDeskStats_funs:dirty_update_counter(monthly_stat_tickets_solved,
                                                                    {Org_name, {Y,M}},1),
-                         erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_solved,
+                                 erlZenDeskStats_funs:dirty_update_counter(weekly_stat_tickets_solved,
                                                                    {Org_name, W},1),
-                         {Y,M,W};
+                                 {Y,M,W}
+                         end;
                       {Date,_,no_change} ->
                          erlZenDeskStats_funs:tokenize_dates(Date)
                  end,
