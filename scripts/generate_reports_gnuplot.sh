@@ -265,7 +265,12 @@ echo "OS_TYPE = "$OS_TYPE
 if [ $OS_TYPE == "osx" ]
 then
     echo "OS X Title="$Title
-    /usr/texbin/pdfjoin $Title1 $Title2 $Title3 --outfile $Title
+    if ! which pdftk > /dev/null; then
+            echo -e "pdfk not found! Try pdfjoin instead \c"
+            /usr/texbin/pdfjoin $Title1 $Title2 $Title3 --outfile $Title
+    else
+            pdftk $Title1 $Title2 $Title3 cat output $Title
+    fi
     rm $Title1
     rm $Title2
     rm $Title3
